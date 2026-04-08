@@ -100,6 +100,12 @@
   @keyframes spin{to{transform:rotate(360deg)}}
   .loading-text{font-size:15px;color:var(--text-secondary);font-weight:500}
   .loading-sub{font-size:12px;color:var(--text-muted)}
+  
+  .toggle-inactive{display:flex;align-items:center;gap:6px;padding:5px 12px;font-size:11px;font-family:inherit;font-weight:500;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text-muted);cursor:pointer}
+  .toggle-inactive:hover{background:var(--bg-card-hover)}
+  .toggle-inactive.active{background:#6b7280;border-color:#6b7280;color:#fff;box-shadow:0 2px 8px rgba(107,114,128,0.25)}
+  .toggle-inactive .diamond{display:inline-block;width:10px;height:10px;background:#9ca3af;transform:rotate(45deg);border-radius:1px}
+  .toggle-inactive.active .diamond{background:#fff}
   @media(max-width:768px){.sidebar{position:absolute;transform:translateX(-100%);width:340px;min-width:340px}.sidebar.open{transform:translateX(0)}.sidebar-toggle{display:flex}}
 </style>
 </head>
@@ -128,6 +134,11 @@
       <input type="text" class="search-box" placeholder="薬局名・施設名・住所で検索..." id="searchInput" oninput="renderSidebar()">
     </div>
     <div class="area-filters" id="areaFilters"></div>
+  
+    <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
+      <button class="toggle-inactive" id="toggleInactive" onclick="toggleInactiveStores()"><span class="diamond"></span>未実施店舗を表示</button>
+      <span style="font-size:11px;color:var(--text-muted)" id="inactiveCount"></span>
+    </div>
   </div>
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab('list')">📋 薬局一覧</button>
@@ -157,6 +168,8 @@
     <div class="legend-item"><div class="legend-icon"><svg width="18" height="18" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="3" fill="#3b5cff" stroke="#fff" stroke-width="1.5"/><line x1="10" y1="5" x2="10" y2="15" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><line x1="5" y1="10" x2="15" y2="10" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg></div>薬局</div>
     <div class="legend-item"><div class="legend-icon"><svg width="18" height="18" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="#3b5cff" stroke="#fff" stroke-width="1.5"/><rect x="6" y="9" width="8" height="6" rx="0.5" fill="#fff"/><polygon points="10,5 5,10 15,10" fill="#fff"/></svg></div>施設</div>
     <div class="legend-item"><div class="legend-icon"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#3b5cff" stroke-width="3" stroke-dasharray="4,3" stroke-linecap="round"/></svg></div>担当ルート</div>
+    
+    <div class="legend-item"><div class="legend-icon"><svg width="18" height="18" viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10" rx="1" fill="#9ca3af" stroke="#fff" stroke-width="1.5" transform="rotate(45 10 10)"/></svg></div>未実施店舗</div>
     <div class="legend-item"><div class="legend-icon"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#f43f5e" stroke-width="3" stroke-linecap="round"/></svg></div>カスタムルート</div>
   </div>
 </div>
@@ -164,6 +177,69 @@
 <script>
 // ★ スプレッドシートの公開URL（CSV形式）
 var SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQItIRx7q0uY8gXB91QxXGJ6pzv39ElKNlCGiIPCaCheWkymFbBjmUeM2HEmeKH0V0UQULS0_tsFdeI/pub?gid=1251366496&single=true&output=csv';
+
+
+// ★ 未実施店舗の公開URL
+var INACTIVE_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQItIRx7q0uY8gXB91QxXGJ6pzv39ElKNlCGiIPCaCheWkymFbBjmUeM2HEmeKH0V0UQULS0_tsFdeI/pub?gid=1017257485&single=true&output=csv';
+
+var inactiveMarkers = [];
+var inactiveData = [];
+var inactiveVisible = false;
+
+function createDiamondIcon() {
+  var svg = '<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="5" y="5" width="14" height="14" rx="2" fill="#9ca3af" stroke="#fff" stroke-width="2" transform="rotate(45 12 12)" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3))"/>' +
+    '</svg>';
+  return L.divIcon({html: svg, className: '', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]});
+}
+
+function loadInactiveStores() {
+  fetch(INACTIVE_CSV_URL)
+    .then(function(res) { return res.text(); })
+    .then(function(csvText) {
+      var rows = parseCSV(csvText);
+      var icon = createDiamondIcon();
+      var count = 0;
+      rows.forEach(function(r) {
+        var lat = parseFloat(r['緯度']);
+        var lng = parseFloat(r['経度']);
+        if (isNaN(lat) || isNaN(lng)) return;
+        var name = r['店舗名'] || '';
+        var area = r['エリア'] || '';
+        var addr = r['住所'] || '';
+        var storeNum = r['店舗番号'] || '';
+        var marker = L.marker([lat, lng], {icon: icon})
+          .bindPopup(
+            '<div class="popup-type" style="color:#9ca3af">◇ 施設在宅未実施</div>' +
+            '<div class="popup-title">' + name + '</div>' +
+            '<div class="popup-address">' + addr + '</div>' +
+            '<div class="popup-detail">' + area + '</div>'
+          );
+        inactiveMarkers.push(marker);
+        inactiveData.push({name: name, area: area, addr: addr, lat: lat, lng: lng, storeNum: storeNum});
+        count++;
+      });
+      document.getElementById('inactiveCount').textContent = count + '店舗';
+      // Add inactive pharmacies to route search autocomplete
+      if (acPharmacy) {
+        inactiveData.forEach(function(s, i) {
+          acPharmacy._addItem({value: 'inactive-' + i, label: s.name + '（未実施）', sub: s.area + ' ／ ' + s.addr});
+        });
+      }
+    })
+    .catch(function(err) { console.log('未実施店舗の読み込みエラー:', err); });
+}
+
+function toggleInactiveStores() {
+  var btn = document.getElementById('toggleInactive');
+  inactiveVisible = !inactiveVisible;
+  btn.classList.toggle('active', inactiveVisible);
+  btn.innerHTML = '<span class="diamond"></span>' + (inactiveVisible ? '未実施店舗を非表示' : '未実施店舗を表示');
+  inactiveMarkers.forEach(function(m) {
+    if (inactiveVisible) { if (!map.hasLayer(m)) map.addLayer(m); }
+    else { if (map.hasLayer(m)) map.removeLayer(m); }
+  });
+}
 
 // 色パレット
 var DISTINCT_COLORS=['#e63946','#2563eb','#16a34a','#f59e0b','#9333ea','#06b6d4','#dc2626','#0d9488','#ea580c','#4f46e5','#15803d','#db2777','#0284c7','#b45309','#7c3aed','#059669','#c026d3','#1d4ed8','#ca8a04','#be123c'];
@@ -352,15 +428,23 @@ function createAutocomplete(containerId, items, placeholder) {
     else if(e.key==='Enter'&&highlightIdx>=0&&items[highlightIdx]){e.preventDefault();items[highlightIdx].dispatchEvent(new Event('mousedown'));}
   });
   function upHL(items){items.forEach(function(el,i){el.classList.toggle('highlighted',i===highlightIdx);});if(items[highlightIdx])items[highlightIdx].scrollIntoView({block:'nearest'});}
-  return{getValue:function(){return selectedValue;},clear:clearSel};
+  var api = {getValue:function(){return selectedValue;},clear:clearSel,_addItem:function(it){items.push(it);}};
+  return api;
 }
 
 function checkReady(){document.getElementById('routeSearchBtn').disabled=!(acPharmacy&&acPharmacy.getValue()!==null&&acFacility&&acFacility.getValue()!==null);}
 
 function searchCustomRoute(){
-  var pIdx=acPharmacy.getValue();var fVal=acFacility.getValue();
+  var pVal=acPharmacy.getValue();var fVal=acFacility.getValue();
   var parts=fVal.split('-');var origPIdx=parseInt(parts[0]),fIdx=parseInt(parts[1]);
-  var pharmacy=DATA[pIdx],facility=DATA[origPIdx].facilities[fIdx];
+  var pharmacy;
+  if(typeof pVal==='string'&&pVal.indexOf('inactive-')===0){
+    var inIdx=parseInt(pVal.replace('inactive-',''));
+    pharmacy={name:inactiveData[inIdx].name,lat:inactiveData[inIdx].lat,lng:inactiveData[inIdx].lng,address:inactiveData[inIdx].addr};
+  } else {
+    pharmacy=DATA[pVal];
+  }
+  var facility=DATA[origPIdx].facilities[fIdx];
   clearCustomRoute();clearRoutes();
   document.getElementById('routeResultNames').innerHTML='<b>薬局：</b>'+pharmacy.name+'<br><b>施設：</b>'+facility.name;
   document.getElementById('routeResultDetail').innerHTML='<span style="color:#999">検索中...</span>';
@@ -457,6 +541,9 @@ fetch(SHEET_CSV_URL)
     // UI構築
     buildAreaFilters();
     renderSidebar();
+
+    // 未実施店舗を読み込み
+    loadInactiveStores();
 
     // ローディング非表示
     document.getElementById('loadingOverlay').style.display = 'none';
