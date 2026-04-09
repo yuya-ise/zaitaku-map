@@ -6,6 +6,7 @@
 <title>施設在宅マップ</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg-primary:#f5f6fa;--bg-sidebar:#fff;--bg-card:#f0f1f5;--bg-card-hover:#e8e9f0;--border:#dcdee6;--text-primary:#1a1c2e;--text-secondary:#5a5d78;--text-muted:#8b8ea8;--accent:#3b5cff;--accent-dim:rgba(59,92,255,0.1);--shadow-sm:0 1px 3px rgba(0,0,0,0.06);--shadow-md:0 4px 16px rgba(0,0,0,0.08);--shadow-lg:0 8px 32px rgba(0,0,0,0.1)}
@@ -216,16 +217,10 @@ map.on('click',function(){
   }
 });
 
-// ========== CSV解析 ==========
+// ========== CSV解析（PapaParse使用） ==========
 function parseCSV(text){
-  var lines=text.split('\n'),headers=parseCSVLine(lines[0]),rows=[];
-  for(var i=1;i<lines.length;i++){if(!lines[i].trim())continue;var v=parseCSVLine(lines[i]),obj={};headers.forEach(function(h,idx){obj[h.trim()]=(v[idx]||'').trim();});rows.push(obj);}
-  return rows;
-}
-function parseCSVLine(line){
-  var result=[],current='',inQ=false;
-  for(var i=0;i<line.length;i++){var c=line[i];if(inQ){if(c==='"'&&line[i+1]==='"'){current+='"';i++;}else if(c==='"')inQ=false;else current+=c;}else{if(c==='"')inQ=true;else if(c===','){result.push(current);current='';}else current+=c;}}
-  result.push(current);return result;
+  var result=Papa.parse(text,{header:true,skipEmptyLines:true,transformHeader:function(h){return h.trim();},transform:function(v){return v.trim();}});
+  return result.data;
 }
 
 function csvToData(rows){
