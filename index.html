@@ -326,7 +326,7 @@ function loadInactiveStores(cb){
       count++;
     });
     document.getElementById('inactiveCountStat').textContent=count;
-    if(acPharmacy)inactiveData.forEach(function(s,i){acPharmacy._addItem({value:'inactive-'+i,label:s.name+'（未実施）',sub:s.area+' ／ '+s.addr});});
+    if(acPharmacy)inactiveData.forEach(function(s,i){acPharmacy._addItem({value:'inactive-'+i,label:(s.storeNum?s.storeNum+' ':'')+s.name+'（未実施）',sub:s.area+' ／ '+s.addr});});
     if(cb)cb();
   }).catch(function(err){console.log('未実施読込エラー:',err);if(cb)cb();});
 }
@@ -335,6 +335,7 @@ function toggleInactiveStores(){
   inactiveVisible=!inactiveVisible;
   btn.classList.toggle('active',inactiveVisible);
   inactiveMarkers.forEach(function(m){if(inactiveVisible){if(!map.hasLayer(m))map.addLayer(m);}else{if(map.hasLayer(m))map.removeLayer(m);}});
+  renderSidebar();
 }
 
 // ========== [C] 施設形態フィルタ ==========
@@ -444,23 +445,62 @@ function renderSidebar(){
   pharmacyGroups.forEach(function(group,i){
     var p=group.data;
     if(activeArea!=='全て'&&p.area!==activeArea)return;
-    // [C] 施設形態フィルタ
     if(activeFacilityType&&!p.facilities.some(function(f){return matchesFacilityType(f.type,activeFacilityType);}))return;
-    // [D] 拡充された検索
-    var mP=p.name.toLowerCase().indexOf(filter)>=0||p.address.toLowerCase().indexOf(filter)>=0||(p.area&&p.area.toLowerCase().indexOf(filter)>=0);
+    // 検索：店舗番号も対象に追加
+    var mP=p.name.toLowerCase().indexOf(filter)>=0||p.address.toLowerCase().indexOf(filter)>=0||(p.area&&p.area.toLowerCase().indexOf(filter)>=0)||(p.storeNum&&p.storeNum.toLowerCase().indexOf(filter)>=0);
     var mF=p.facilities.some(function(f){return f.name.toLowerCase().indexOf(filter)>=0||f.address.toLowerCase().indexOf(filter)>=0||(f.type&&f.type.toLowerCase().indexOf(filter)>=0);});
     if(filter&&!mP&&!mF)return;
 
     anyResult=true;totalP++;totalF+=p.facilities.length;areas[p.area]=true;
     if(p.area!==currentArea){currentArea=p.area;var lbl=document.createElement('div');lbl.className='area-section-label';lbl.textContent=p.area;list.appendChild(lbl);}
+    // 店舗番号 + 店舗名称で表示
+    var displayName=(p.storeNum?p.storeNum+' ':'')+p.name;
     var div=document.createElement('div');
-    div.innerHTML='<div class="pharmacy-card'+(activeGroupIndex===i?' active':'')+'" id="pcard-'+i+'"><div class="color-dot" style="background:'+group.color+'"></div><div class="pharmacy-info"><div class="pharmacy-name">'+p.name+'</div><div class="pharmacy-meta">'+p.address+'</div></div><span class="facility-count">'+p.facilities.length+'施設</span></div><div class="facility-list'+(activeGroupIndex===i?' open':'')+'" id="flist-'+i+'">'+p.facilities.map(function(f,fi){return'<div class="facility-item" data-gi="'+i+'" data-fi="'+fi+'"><div class="facility-item-header"><span class="facility-icon-small">🏠</span>'+f.name+(f.type?' <span style="font-size:9px;color:#aaa">'+f.type+'</span>':'')+'</div><div id="route-info-'+i+'-'+fi+'"></div></div>';}).join('')+'</div>';
+    div.innerHTML='<div class="pharmacy-card'+(activeGroupIndex===i?' active':'')+'" id="pcard-'+i+'"><div class="color-dot" style="background:'+group.color+'"></div><div class="pharmacy-info"><div class="pharmacy-name">'+displayName+'</div><div class="pharmacy-meta">'+p.address+'</div></div><span class="facility-count">'+p.facilities.length+'施設</span></div><div class="facility-list'+(activeGroupIndex===i?' open':'')+'" id="flist-'+i+'">'+p.facilities.map(function(f,fi){return'<div class="facility-item" data-gi="'+i+'" data-fi="'+fi+'"><div class="facility-item-header"><span class="facility-icon-small">🏠</span>'+f.name+(f.type?' <span style="font-size:9px;color:#aaa">'+f.type+'</span>':'')+'</div><div id="route-info-'+i+'-'+fi+'"></div></div>';}).join('')+'</div>';
     div.querySelector('.pharmacy-card').addEventListener('click',function(){toggleFacilities(i);});
     div.querySelectorAll('.facility-item').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();focusFacility(parseInt(el.dataset.gi),parseInt(el.dataset.fi));});});
     list.appendChild(div);
   });
 
-  // [E] 0件メッセージ
+  // 未実施店舗リスト（トグルON時のみ）
+  if(inactiveVisible&&inactiveData.length>0){
+    var inactiveFiltered=inactiveData.filter(function(s,idx){
+      if(activeArea!=='全て'&&s.area!==activeArea)return false;
+      if(filter){
+        var m=s.name.toLowerCase().indexOf(filter)>=0||s.addr.toLowerCase().indexOf(filter)>=0||(s.area&&s.area.toLowerCase().indexOf(filter)>=0)||(s.storeNum&&s.storeNum.toLowerCase().indexOf(filter)>=0);
+        if(!m)return false;
+      }
+      return true;
+    });
+    if(inactiveFiltered.length>0){
+      anyResult=true;
+      var secLabel=document.createElement('div');
+      secLabel.className='area-section-label';
+      secLabel.style.color='#6b7280';
+      secLabel.textContent='施設在宅未実施（'+inactiveFiltered.length+'店舗）';
+      list.appendChild(secLabel);
+      inactiveFiltered.forEach(function(s){
+        var origIdx=inactiveData.indexOf(s);
+        var dispName=(s.storeNum?s.storeNum+' ':'')+s.name;
+        var card=document.createElement('div');
+        card.innerHTML='<div class="pharmacy-card" style="opacity:0.7"><div class="color-dot" style="background:#9ca3af;transform:rotate(45deg);border-radius:2px"></div><div class="pharmacy-info"><div class="pharmacy-name" style="color:#6b7280">'+dispName+'</div><div class="pharmacy-meta">'+s.addr+'</div></div><span style="font-size:9px;color:#9ca3af;padding:2px 6px;border:1px solid #d1d5db;border-radius:4px">未実施</span></div>';
+        card.querySelector('.pharmacy-card').addEventListener('click',function(){
+          // 既存選択を解除
+          document.querySelectorAll('.facility-list').forEach(function(el){el.classList.remove('open');});
+          document.querySelectorAll('.pharmacy-card').forEach(function(el){el.classList.remove('active');});
+          clearRoutes();clearStraightLines();activeGroupIndex=null;
+          // 未実施店舗にズーム＆ポップアップ
+          if(inactiveMarkers[origIdx]){
+            map.setView([s.lat,s.lng],15,{animate:true});
+            inactiveMarkers[origIdx].openPopup();
+          }
+        });
+        list.appendChild(card);
+      });
+    }
+  }
+
+  // 0件メッセージ
   if(!anyResult){
     list.innerHTML='<div class="no-results"><div class="no-results-icon">🔍</div>該当する薬局・施設が見つかりません<div class="no-results-text">検索条件やフィルタを変更してみてください</div></div>';
   }
@@ -499,16 +539,16 @@ fetch(SHEET_CSV_URL).then(function(res){return res.text();}).then(function(csvTe
 
   DATA.forEach(function(p,i){
     var color=colorMap[i]||'#6b7280',markers=[];
-    markers.push(L.marker([p.lat,p.lng],{icon:createPharmacyIcon(color,p.role)}).bindPopup('<div class="popup-type">💊 薬局</div><div class="popup-title">'+p.name+'</div><div class="popup-address">'+p.address+'</div><div class="popup-detail">'+p.area+' ／ '+p.facilities.length+'施設担当</div>').addTo(map));
+    markers.push(L.marker([p.lat,p.lng],{icon:createPharmacyIcon(color,p.role)}).bindPopup('<div class="popup-type">💊 薬局</div><div class="popup-title">'+(p.storeNum?p.storeNum+' ':'')+p.name+'</div><div class="popup-address">'+p.address+'</div><div class="popup-detail">'+p.area+' ／ '+p.facilities.length+'施設担当</div>').addTo(map));
     p.facilities.forEach(function(f){
-      markers.push(L.marker([f.lat,f.lng],{icon:createFacilityIcon(color)}).bindPopup('<div class="popup-type">🏠 '+(f.type||'施設')+'</div><div class="popup-title">'+f.name+'</div><div class="popup-address">'+f.address+'</div><div class="popup-parent">担当：'+p.name+'</div>'+(f.patients?'<div class="popup-detail">'+f.patients+' ／ '+f.frequency+'</div>':'')).addTo(map));
+      markers.push(L.marker([f.lat,f.lng],{icon:createFacilityIcon(color)}).bindPopup('<div class="popup-type">🏠 '+(f.type||'施設')+'</div><div class="popup-title">'+f.name+'</div><div class="popup-address">'+f.address+'</div><div class="popup-parent">担当：'+(p.storeNum?p.storeNum+' ':'')+p.name+'</div>'+(f.patients?'<div class="popup-detail">'+f.patients+' ／ '+f.frequency+'</div>':'')).addTo(map));
     });
     pharmacyGroups.push({data:p,color:color,markers:markers});
   });
 
   // オートコンプリート
-  var pItems=DATA.map(function(p,i){return{value:i,label:p.name,sub:p.area+' ／ '+p.address};});
-  var fItems=[];DATA.forEach(function(p,pi){p.facilities.forEach(function(f,fi){fItems.push({value:pi+'-'+fi,label:f.name,sub:'現担当：'+p.name+' ／ '+(f.type||'')});});});
+  var pItems=DATA.map(function(p,i){return{value:i,label:(p.storeNum?p.storeNum+' ':'')+p.name,sub:p.area+' ／ '+p.address};});
+  var fItems=[];DATA.forEach(function(p,pi){p.facilities.forEach(function(f,fi){fItems.push({value:pi+'-'+fi,label:f.name,sub:'現担当：'+(p.storeNum?p.storeNum+' ':'')+p.name+' ／ '+(f.type||'')});});});
   acPharmacy=createAutocomplete('pharmacySelector',pItems,'薬局名を入力...');
   acFacility=createAutocomplete('facilitySelector',fItems,'施設名を入力...');
 
