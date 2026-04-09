@@ -8,136 +8,148 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root{--bg-primary:#f5f6fa;--bg-sidebar:#fff;--bg-card:#f0f1f5;--bg-card-hover:#e8e9f0;--border:#dcdee6;--text-primary:#1a1c2e;--text-secondary:#5a5d78;--text-muted:#8b8ea8;--accent:#3b5cff;--accent-dim:rgba(59,92,255,0.1);--shadow-sm:0 1px 3px rgba(0,0,0,0.06);--shadow-md:0 4px 16px rgba(0,0,0,0.08);--shadow-lg:0 8px 32px rgba(0,0,0,0.1)}
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Noto Sans JP','IBM Plex Sans',sans-serif;background:var(--bg-primary);color:var(--text-primary);height:100vh;overflow:hidden;display:flex}
-  .sidebar{width:400px;min-width:400px;height:100vh;background:var(--bg-sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:1000;box-shadow:var(--shadow-md)}
-  .sidebar-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#f8f9ff 0%,#fff 100%)}
-  .sidebar-header h1{font-size:18px;font-weight:600;display:flex;align-items:center;gap:10px}
-  .sidebar-header h1 .icon-pill{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;box-shadow:0 2px 8px rgba(59,92,255,0.3)}
-  .stats-bar{display:flex;gap:20px;margin-top:12px}
-  .stat-value{font-family:'IBM Plex Sans',sans-serif;font-size:24px;font-weight:600;color:var(--accent)}
-  .stat-label{font-size:11px;color:var(--text-muted);letter-spacing:0.05em}
-  .controls-wrapper{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:10px;background:#fafbff}
-  .search-container{position:relative}
-  .search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:14px;pointer-events:none}
-  .search-box{width:100%;padding:10px 14px 10px 40px;background:#fff;border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-family:inherit;font-size:13px;outline:none;box-shadow:var(--shadow-sm)}
-  .search-box:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,92,255,0.12)}
-  .area-filters{display:flex;flex-wrap:wrap;gap:6px}
-  .area-btn{padding:5px 12px;font-size:11px;font-family:inherit;font-weight:500;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text-secondary);cursor:pointer}
-  .area-btn:hover{background:var(--bg-card-hover)}
-  .area-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(59,92,255,0.25)}
-  .tab-bar{display:flex;border-bottom:1px solid var(--border)}
-  .tab-btn{flex:1;padding:10px 0;font-size:13px;font-family:inherit;font-weight:500;border:none;background:transparent;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent}
-  .tab-btn:hover{color:var(--text-primary);background:var(--bg-card)}
-  .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
-  .tab-content{display:none;flex:1;overflow-y:auto}
-  .tab-content.active{display:flex;flex-direction:column}
-  .route-panel{padding:16px 24px;display:flex;flex-direction:column;gap:14px}
-  .route-panel label{font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:2px}
-  .autocomplete-wrapper{position:relative}
-  .autocomplete-input{width:100%;padding:10px 12px;background:#fff;border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:13px;color:var(--text-primary);outline:none}
-  .autocomplete-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,92,255,0.12)}
-  .autocomplete-input::placeholder{color:var(--text-muted)}
-  .autocomplete-list{position:absolute;top:100%;left:0;right:0;max-height:240px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;box-shadow:var(--shadow-md);z-index:100;display:none}
-  .autocomplete-list.show{display:block}
-  .autocomplete-item{padding:9px 14px;font-size:12px;cursor:pointer;border-bottom:1px solid #f0f1f5;display:flex;flex-direction:column;gap:1px}
-  .autocomplete-item:hover,.autocomplete-item.highlighted{background:var(--accent-dim)}
-  .autocomplete-item-name{font-weight:500;color:var(--text-primary)}
-  .autocomplete-item-sub{font-size:11px;color:var(--text-muted)}
-  .autocomplete-list::-webkit-scrollbar{width:4px}
-  .autocomplete-list::-webkit-scrollbar-thumb{background:#ccc;border-radius:4px}
-  .selected-tag{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--accent-dim);border:1px solid rgba(59,92,255,0.2);border-radius:10px;font-size:13px;color:var(--accent);font-weight:500}
-  .selected-tag .clear-btn{background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:0 2px;line-height:1}
-  .selected-tag .clear-btn:hover{color:var(--text-primary)}
-  .route-search-btn{padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(59,92,255,0.3)}
-  .route-search-btn:hover{background:#2a4bef}
-  .route-search-btn:disabled{background:#a0aec0;cursor:not-allowed;box-shadow:none}
-  .route-result{padding:16px;background:var(--bg-card);border-radius:12px;display:none}
-  .route-result.show{display:block}
-  .route-result-title{font-size:13px;font-weight:600;margin-bottom:8px}
-  .route-result-detail{display:flex;gap:12px;margin-top:6px}
-  .route-result-badge{background:#eef2ff;color:#4f46e5;padding:4px 12px;border-radius:6px;font-weight:600;font-size:13px}
-  .route-result-names{font-size:12px;color:var(--text-secondary);line-height:1.6;margin-top:6px}
-  .route-clear-btn{padding:8px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px;cursor:pointer;margin-top:8px}
-  .route-clear-btn:hover{background:var(--bg-card-hover);color:var(--text-primary)}
-  .pharmacy-list{flex:1;overflow-y:auto;padding:8px 12px}
-  .pharmacy-list::-webkit-scrollbar{width:5px}
-  .pharmacy-list::-webkit-scrollbar-thumb{background:#cccfd8;border-radius:10px}
-  .area-section-label{font-size:11px;font-weight:600;color:var(--accent);letter-spacing:0.06em;padding:14px 14px 6px;border-bottom:1px solid var(--border);margin-bottom:4px}
-  .pharmacy-card{padding:10px 14px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:12px}
-  .pharmacy-card:hover{background:var(--bg-card)}
-  .pharmacy-card.active{background:var(--accent-dim);border:1px solid rgba(59,92,255,0.2)}
-  .color-dot{width:14px;height:14px;border-radius:4px;flex-shrink:0;box-shadow:var(--shadow-sm)}
-  .pharmacy-info{flex:1;min-width:0}
-  .pharmacy-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .pharmacy-meta{font-size:11px;color:var(--text-secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .facility-count{font-family:'IBM Plex Sans',sans-serif;background:var(--accent-dim);color:var(--accent);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;flex-shrink:0}
-  .facility-list{max-height:0;overflow:hidden;transition:max-height 0.3s ease;padding-left:26px}
-  .facility-list.open{max-height:3000px}
-  .facility-item{padding:8px 14px;font-size:12px;color:var(--text-secondary);border-left:2px solid var(--border);margin-left:8px;cursor:pointer;display:flex;align-items:flex-start;gap:8px;flex-direction:column}
-  .facility-item:hover{color:var(--text-primary);border-left-color:var(--accent);background:var(--bg-card);border-radius:0 8px 8px 0}
-  .facility-item-header{display:flex;align-items:center;gap:6px;width:100%}
-  .facility-icon-small{font-size:10px;opacity:0.6}
-  .facility-route-info{font-size:11px;color:var(--text-muted);display:flex;gap:10px;margin-top:2px;padding-left:18px}
-  .route-badge{background:#eef2ff;color:#4f46e5;padding:1px 7px;border-radius:4px;font-weight:500;font-size:10px}
-  .route-loading{font-size:10px;color:var(--text-muted);padding-left:18px;margin-top:2px}
-  .map-container{flex:1;position:relative}
-  #map{width:100%;height:100%}
-  .map-legend{position:absolute;bottom:24px;right:24px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;z-index:999;box-shadow:var(--shadow-lg)}
-  .legend-title{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:10px}
-  .legend-item{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:12px;color:var(--text-secondary)}
-  .legend-icon{width:20px;height:20px;display:flex;align-items:center;justify-content:center}
-  .sidebar-toggle{display:none;position:absolute;top:12px;left:12px;z-index:1001;width:44px;height:44px;background:#fff;border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-size:20px;cursor:pointer;align-items:center;justify-content:center;box-shadow:var(--shadow-md)}
-  .leaflet-popup-content-wrapper{background:#fff !important;border:1px solid var(--border) !important;border-radius:12px !important;box-shadow:var(--shadow-lg) !important}
-  .leaflet-popup-tip{background:#fff !important}
-  .leaflet-popup-content{margin:14px 16px !important;font-family:'Noto Sans JP',sans-serif !important;font-size:13px !important;line-height:1.6 !important}
-  .popup-title{font-weight:600;font-size:14px;margin-bottom:4px}.popup-type{font-size:11px;color:var(--text-muted);margin-bottom:6px}.popup-address{font-size:12px;color:var(--text-secondary)}.popup-parent{font-size:11px;color:var(--accent);margin-top:4px;font-weight:500}.popup-detail{font-size:11px;color:var(--text-muted);margin-top:2px}
-  .leaflet-control-zoom{border:1px solid var(--border) !important;border-radius:10px !important;overflow:hidden;box-shadow:var(--shadow-md) !important}
-  .leaflet-control-zoom a{background:#fff !important;color:var(--text-primary) !important;border-bottom:1px solid var(--border) !important;width:36px !important;height:36px !important;line-height:36px !important}
-  .loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px}
-  .loading-spinner{width:48px;height:48px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .loading-text{font-size:15px;color:var(--text-secondary);font-weight:500}
-  .loading-sub{font-size:12px;color:var(--text-muted)}
-  
-  .toggle-inactive{display:flex;align-items:center;gap:6px;padding:5px 12px;font-size:11px;font-family:inherit;font-weight:500;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text-muted);cursor:pointer}
-  .toggle-inactive:hover{background:var(--bg-card-hover)}
-  .toggle-inactive.active{background:#6b7280;border-color:#6b7280;color:#fff;box-shadow:0 2px 8px rgba(107,114,128,0.25)}
-  .toggle-inactive .diamond{display:inline-block;width:10px;height:10px;background:#9ca3af;transform:rotate(45deg);border-radius:1px}
-  .toggle-inactive.active .diamond{background:#fff}
-  @media(max-width:768px){.sidebar{position:absolute;transform:translateX(-100%);width:340px;min-width:340px}.sidebar.open{transform:translateX(0)}.sidebar-toggle{display:flex}}
+:root{--bg-primary:#f5f6fa;--bg-sidebar:#fff;--bg-card:#f0f1f5;--bg-card-hover:#e8e9f0;--border:#dcdee6;--text-primary:#1a1c2e;--text-secondary:#5a5d78;--text-muted:#8b8ea8;--accent:#3b5cff;--accent-dim:rgba(59,92,255,0.1);--shadow-sm:0 1px 3px rgba(0,0,0,0.06);--shadow-md:0 4px 16px rgba(0,0,0,0.08);--shadow-lg:0 8px 32px rgba(0,0,0,0.1)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans JP','IBM Plex Sans',sans-serif;background:var(--bg-primary);color:var(--text-primary);height:100vh;overflow:hidden;display:flex}
+.sidebar{width:400px;min-width:400px;height:100vh;background:var(--bg-sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:1000;box-shadow:var(--shadow-md)}
+.sidebar-header{padding:16px 24px 12px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#f8f9ff 0%,#fff 100%)}
+.sidebar-header h1{font-size:18px;font-weight:600;display:flex;align-items:center;gap:10px}
+.sidebar-header h1 .icon-pill{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;box-shadow:0 2px 8px rgba(59,92,255,0.3)}
+.stats-bar{display:flex;gap:16px;margin-top:10px;flex-wrap:wrap}
+.stat-value{font-family:'IBM Plex Sans',sans-serif;font-size:22px;font-weight:600;color:var(--accent)}
+.stat-label{font-size:10px;color:var(--text-muted);letter-spacing:0.05em}
+.meta-bar{display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--text-muted);flex-wrap:wrap;align-items:center}
+.meta-bar .warn{color:#e63946;font-weight:500}
+.controls-wrapper{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;background:#fafbff}
+.search-container{position:relative}
+.search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:14px;pointer-events:none}
+.search-box{width:100%;padding:9px 14px 9px 38px;background:#fff;border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-family:inherit;font-size:13px;outline:none;box-shadow:var(--shadow-sm)}
+.search-box:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,92,255,0.12)}
+.filter-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.filter-label{font-size:10px;color:var(--text-muted);font-weight:500;margin-right:2px}
+.area-btn,.filter-btn{padding:4px 10px;font-size:10px;font-family:inherit;font-weight:500;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+.area-btn:hover,.filter-btn:hover{background:var(--bg-card-hover)}
+.area-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 6px rgba(59,92,255,0.2)}
+.filter-btn.active{background:#374151;border-color:#374151;color:#fff}
+.toggle-inactive{display:flex;align-items:center;gap:5px;padding:4px 10px;font-size:10px;font-family:inherit;font-weight:500;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text-muted);cursor:pointer}
+.toggle-inactive:hover{background:var(--bg-card-hover)}
+.toggle-inactive.active{background:#6b7280;border-color:#6b7280;color:#fff}
+.toggle-inactive .diamond{display:inline-block;width:8px;height:8px;background:#9ca3af;transform:rotate(45deg);border-radius:1px}
+.toggle-inactive.active .diamond{background:#fff}
+.facility-type-select{padding:4px 8px;font-size:10px;font-family:inherit;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text-secondary);outline:none;max-width:180px;cursor:pointer}
+.tab-bar{display:flex;border-bottom:1px solid var(--border)}
+.tab-btn{flex:1;padding:9px 0;font-size:12px;font-family:inherit;font-weight:500;border:none;background:transparent;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab-btn:hover{color:var(--text-primary);background:var(--bg-card)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none;flex:1;overflow-y:auto}
+.tab-content.active{display:flex;flex-direction:column}
+.route-panel{padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+.route-panel label{font-size:11px;font-weight:500;color:var(--text-secondary);margin-bottom:2px}
+.autocomplete-wrapper{position:relative}
+.autocomplete-input{width:100%;padding:9px 12px;background:#fff;border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:12px;color:var(--text-primary);outline:none}
+.autocomplete-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,92,255,0.12)}
+.autocomplete-input::placeholder{color:var(--text-muted)}
+.autocomplete-list{position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;box-shadow:var(--shadow-md);z-index:100;display:none}
+.autocomplete-list.show{display:block}
+.autocomplete-item{padding:8px 12px;font-size:11px;cursor:pointer;border-bottom:1px solid #f0f1f5;display:flex;flex-direction:column;gap:1px}
+.autocomplete-item:hover,.autocomplete-item.highlighted{background:var(--accent-dim)}
+.autocomplete-item-name{font-weight:500;color:var(--text-primary)}
+.autocomplete-item-sub{font-size:10px;color:var(--text-muted)}
+.autocomplete-list::-webkit-scrollbar{width:4px}
+.autocomplete-list::-webkit-scrollbar-thumb{background:#ccc;border-radius:4px}
+.selected-tag{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--accent-dim);border:1px solid rgba(59,92,255,0.2);border-radius:10px;font-size:12px;color:var(--accent);font-weight:500}
+.selected-tag .clear-btn{background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:0 2px;line-height:1}
+.selected-tag .clear-btn:hover{color:var(--text-primary)}
+.route-search-btn{padding:10px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(59,92,255,0.3)}
+.route-search-btn:hover{background:#2a4bef}
+.route-search-btn:disabled{background:#a0aec0;cursor:not-allowed;box-shadow:none}
+.route-result{padding:14px;background:var(--bg-card);border-radius:12px;display:none}
+.route-result.show{display:block}
+.route-result-title{font-size:12px;font-weight:600;margin-bottom:6px}
+.route-result-detail{display:flex;gap:10px;margin-top:6px}
+.route-result-badge{background:#eef2ff;color:#4f46e5;padding:3px 10px;border-radius:6px;font-weight:600;font-size:12px}
+.route-result-names{font-size:11px;color:var(--text-secondary);line-height:1.6;margin-top:4px}
+.route-clear-btn{padding:6px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:11px;cursor:pointer;margin-top:6px}
+.route-clear-btn:hover{background:var(--bg-card-hover);color:var(--text-primary)}
+.pharmacy-list{flex:1;overflow-y:auto;padding:6px 10px}
+.pharmacy-list::-webkit-scrollbar{width:5px}
+.pharmacy-list::-webkit-scrollbar-thumb{background:#cccfd8;border-radius:10px}
+.area-section-label{font-size:10px;font-weight:600;color:var(--accent);letter-spacing:0.06em;padding:12px 12px 4px;border-bottom:1px solid var(--border);margin-bottom:3px}
+.pharmacy-card{padding:8px 12px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:10px}
+.pharmacy-card:hover{background:var(--bg-card)}
+.pharmacy-card.active{background:var(--accent-dim);border:1px solid rgba(59,92,255,0.2)}
+.color-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0;box-shadow:var(--shadow-sm)}
+.pharmacy-info{flex:1;min-width:0}
+.pharmacy-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pharmacy-meta{font-size:10px;color:var(--text-secondary);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.facility-count{font-family:'IBM Plex Sans',sans-serif;background:var(--accent-dim);color:var(--accent);padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;flex-shrink:0}
+.facility-list{max-height:0;overflow:hidden;transition:max-height 0.3s ease;padding-left:22px}
+.facility-list.open{max-height:3000px}
+.facility-item{padding:7px 12px;font-size:11px;color:var(--text-secondary);border-left:2px solid var(--border);margin-left:6px;cursor:pointer;display:flex;align-items:flex-start;gap:6px;flex-direction:column}
+.facility-item:hover{color:var(--text-primary);border-left-color:var(--accent);background:var(--bg-card);border-radius:0 8px 8px 0}
+.facility-item-header{display:flex;align-items:center;gap:5px;width:100%}
+.facility-icon-small{font-size:9px;opacity:0.6}
+.facility-route-info{font-size:10px;color:var(--text-muted);display:flex;gap:8px;margin-top:1px;padding-left:16px}
+.route-badge{background:#eef2ff;color:#4f46e5;padding:1px 6px;border-radius:4px;font-weight:500;font-size:9px}
+.route-click-hint{font-size:9px;color:var(--accent);padding-left:16px;margin-top:1px;cursor:pointer}
+.route-click-hint:hover{text-decoration:underline}
+.no-results{padding:40px 20px;text-align:center;color:var(--text-muted);font-size:13px}
+.no-results-icon{font-size:32px;margin-bottom:8px}
+.no-results-text{font-size:12px;margin-top:4px;color:var(--text-muted)}
+.map-container{flex:1;position:relative}
+#map{width:100%;height:100%}
+.map-legend{position:absolute;bottom:20px;right:20px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 18px;z-index:999;box-shadow:var(--shadow-lg);font-size:11px}
+.legend-title{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:8px}
+.legend-item{display:flex;align-items:center;gap:8px;margin-bottom:5px;color:var(--text-secondary)}
+.legend-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center}
+.sidebar-toggle{display:none;position:absolute;top:12px;left:12px;z-index:1001;width:44px;height:44px;background:#fff;border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-size:20px;cursor:pointer;align-items:center;justify-content:center;box-shadow:var(--shadow-md)}
+.leaflet-popup-content-wrapper{background:#fff !important;border:1px solid var(--border) !important;border-radius:12px !important;box-shadow:var(--shadow-lg) !important}
+.leaflet-popup-tip{background:#fff !important}
+.leaflet-popup-content{margin:12px 14px !important;font-family:'Noto Sans JP',sans-serif !important;font-size:12px !important;line-height:1.6 !important}
+.popup-title{font-weight:600;font-size:13px;margin-bottom:3px}.popup-type{font-size:10px;color:var(--text-muted);margin-bottom:4px}.popup-address{font-size:11px;color:var(--text-secondary)}.popup-parent{font-size:10px;color:var(--accent);margin-top:3px;font-weight:500}.popup-detail{font-size:10px;color:var(--text-muted);margin-top:2px}
+.leaflet-control-zoom{border:1px solid var(--border) !important;border-radius:10px !important;overflow:hidden;box-shadow:var(--shadow-md) !important}
+.leaflet-control-zoom a{background:#fff !important;color:var(--text-primary) !important;border-bottom:1px solid var(--border) !important;width:34px !important;height:34px !important;line-height:34px !important}
+.loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px}
+.loading-spinner{width:44px;height:44px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;color:var(--text-secondary);font-weight:500}
+.loading-sub{font-size:11px;color:var(--text-muted)}
+@media(max-width:768px){.sidebar{position:absolute;transform:translateX(-100%);width:340px;min-width:340px}.sidebar.open{transform:translateX(0)}.sidebar-toggle{display:flex}}
 </style>
 </head>
 <body>
-
-<!-- ローディング画面 -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loading-spinner"></div>
   <div class="loading-text">施設在宅マップを読み込み中...</div>
   <div class="loading-sub">スプレッドシートからデータを取得しています</div>
 </div>
-
 <button class="sidebar-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
 <div class="sidebar">
   <div class="sidebar-header">
     <h1><span class="icon-pill">💊</span>施設在宅マップ</h1>
     <div class="stats-bar">
-      <div class="stat"><span class="stat-value" id="pharmacyCount">0</span><span class="stat-label">薬局数</span></div>
-      <div class="stat"><span class="stat-value" id="facilityCount">0</span><span class="stat-label">施設数</span></div>
+      <div class="stat"><span class="stat-value" id="pharmacyCount">0</span><span class="stat-label">薬局</span></div>
+      <div class="stat"><span class="stat-value" id="facilityCount">0</span><span class="stat-label">施設</span></div>
       <div class="stat"><span class="stat-value" id="areaCount">0</span><span class="stat-label">エリア</span></div>
+      <div class="stat"><span class="stat-value" id="inactiveCountStat">0</span><span class="stat-label">未実施</span></div>
+    </div>
+    <div class="meta-bar">
+      <span id="metaUpdated">📅 --</span>
+      <span id="metaErrors"></span>
     </div>
   </div>
   <div class="controls-wrapper">
     <div class="search-container">
       <span class="search-icon">🔍</span>
-      <input type="text" class="search-box" placeholder="薬局名・施設名・住所で検索..." id="searchInput" oninput="renderSidebar()">
+      <input type="text" class="search-box" placeholder="薬局名・施設名・住所・施設形態で検索..." id="searchInput" oninput="onFilterChange()">
     </div>
-    <div class="area-filters" id="areaFilters"></div>
-  
-    <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
-      <button class="toggle-inactive" id="toggleInactive" onclick="toggleInactiveStores()"><span class="diamond"></span>未実施店舗を表示</button>
-      <span style="font-size:11px;color:var(--text-muted)" id="inactiveCount"></span>
+    <div class="filter-row" id="areaFilters"></div>
+    <div class="filter-row">
+      <span class="filter-label">形態:</span>
+      <select class="facility-type-select" id="facilityTypeFilter" onchange="onFilterChange()">
+        <option value="">すべて</option>
+      </select>
+      <button class="toggle-inactive" id="toggleInactive" onclick="toggleInactiveStores()"><span class="diamond"></span>未実施</button>
     </div>
   </div>
   <div class="tab-bar">
@@ -149,8 +161,8 @@
   </div>
   <div class="tab-content" id="tab-route">
     <div class="route-panel">
-      <div><label>① 薬局を選択（名前を入力して候補を絞り込み）</label><div id="pharmacySelector"></div></div>
-      <div><label>② 施設を選択（名前を入力して候補を絞り込み）</label><div id="facilitySelector"></div></div>
+      <div><label>① 薬局を選択</label><div id="pharmacySelector"></div></div>
+      <div><label>② 施設を選択</label><div id="facilitySelector"></div></div>
       <button class="route-search-btn" id="routeSearchBtn" onclick="searchCustomRoute()" disabled>ルートを検索</button>
       <div class="route-result" id="routeResult">
         <div class="route-result-title">検索結果</div>
@@ -167,184 +179,75 @@
     <div class="legend-title">凡例</div>
     <div class="legend-item"><div class="legend-icon"><svg width="18" height="18" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="3" fill="#3b5cff" stroke="#fff" stroke-width="1.5"/><line x1="10" y1="5" x2="10" y2="15" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><line x1="5" y1="10" x2="15" y2="10" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg></div>薬局</div>
     <div class="legend-item"><div class="legend-icon"><svg width="18" height="18" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="#3b5cff" stroke="#fff" stroke-width="1.5"/><rect x="6" y="9" width="8" height="6" rx="0.5" fill="#fff"/><polygon points="10,5 5,10 15,10" fill="#fff"/></svg></div>施設</div>
-    <div class="legend-item"><div class="legend-icon"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#3b5cff" stroke-width="3" stroke-dasharray="4,3" stroke-linecap="round"/></svg></div>担当ルート</div>
-    
     <div class="legend-item"><div class="legend-icon"><svg width="18" height="18" viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10" rx="1" fill="#9ca3af" stroke="#fff" stroke-width="1.5" transform="rotate(45 10 10)"/></svg></div>未実施店舗</div>
-    <div class="legend-item"><div class="legend-icon"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#f43f5e" stroke-width="3" stroke-linecap="round"/></svg></div>カスタムルート</div>
+    <div class="legend-item"><div class="legend-icon"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/></svg></div>直線距離</div>
+    <div class="legend-item"><div class="legend-icon"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#3b5cff" stroke-width="3" stroke-dasharray="6,4"/></svg></div>実ルート</div>
+    <div class="legend-item"><div class="legend-icon"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#f43f5e" stroke-width="3"/></svg></div>カスタムルート</div>
   </div>
 </div>
-
 <script>
-// ★ スプレッドシートの公開URL（CSV形式）
-var SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQItIRx7q0uY8gXB91QxXGJ6pzv39ElKNlCGiIPCaCheWkymFbBjmUeM2HEmeKH0V0UQULS0_tsFdeI/pub?gid=1251366496&single=true&output=csv';
+// ========== データURL ==========
+var SHEET_CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQItIRx7q0uY8gXB91QxXGJ6pzv39ElKNlCGiIPCaCheWkymFbBjmUeM2HEmeKH0V0UQULS0_tsFdeI/pub?gid=1251366496&single=true&output=csv';
+var INACTIVE_CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQItIRx7q0uY8gXB91QxXGJ6pzv39ElKNlCGiIPCaCheWkymFbBjmUeM2HEmeKH0V0UQULS0_tsFdeI/pub?gid=1017257485&single=true&output=csv';
 
-
-// ★ 未実施店舗の公開URL
-var INACTIVE_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQItIRx7q0uY8gXB91QxXGJ6pzv39ElKNlCGiIPCaCheWkymFbBjmUeM2HEmeKH0V0UQULS0_tsFdeI/pub?gid=1017257485&single=true&output=csv';
-
-var inactiveMarkers = [];
-var inactiveData = [];
-var inactiveVisible = false;
-
-function createDiamondIcon() {
-  var svg = '<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
-    '<rect x="5" y="5" width="14" height="14" rx="2" fill="#9ca3af" stroke="#fff" stroke-width="2" transform="rotate(45 12 12)" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3))"/>' +
-    '</svg>';
-  return L.divIcon({html: svg, className: '', iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]});
-}
-
-function loadInactiveStores() {
-  fetch(INACTIVE_CSV_URL)
-    .then(function(res) { return res.text(); })
-    .then(function(csvText) {
-      var rows = parseCSV(csvText);
-      var icon = createDiamondIcon();
-      var count = 0;
-      rows.forEach(function(r) {
-        var lat = parseFloat(r['緯度']);
-        var lng = parseFloat(r['経度']);
-        if (isNaN(lat) || isNaN(lng)) return;
-        var name = r['店舗名'] || '';
-        var area = r['エリア'] || '';
-        var addr = r['住所'] || '';
-        var storeNum = r['店舗番号'] || '';
-        var marker = L.marker([lat, lng], {icon: icon})
-          .bindPopup(
-            '<div class="popup-type" style="color:#9ca3af">◇ 施設在宅未実施</div>' +
-            '<div class="popup-title">' + name + '</div>' +
-            '<div class="popup-address">' + addr + '</div>' +
-            '<div class="popup-detail">' + area + '</div>'
-          );
-        inactiveMarkers.push(marker);
-        inactiveData.push({name: name, area: area, addr: addr, lat: lat, lng: lng, storeNum: storeNum});
-        count++;
-      });
-      document.getElementById('inactiveCount').textContent = count + '店舗';
-      // Add inactive pharmacies to route search autocomplete
-      if (acPharmacy) {
-        inactiveData.forEach(function(s, i) {
-          acPharmacy._addItem({value: 'inactive-' + i, label: s.name + '（未実施）', sub: s.area + ' ／ ' + s.addr});
-        });
-      }
-    })
-    .catch(function(err) { console.log('未実施店舗の読み込みエラー:', err); });
-}
-
-function toggleInactiveStores() {
-  var btn = document.getElementById('toggleInactive');
-  inactiveVisible = !inactiveVisible;
-  btn.classList.toggle('active', inactiveVisible);
-  btn.innerHTML = '<span class="diamond"></span>' + (inactiveVisible ? '未実施店舗を非表示' : '未実施店舗を表示');
-  inactiveMarkers.forEach(function(m) {
-    if (inactiveVisible) { if (!map.hasLayer(m)) map.addLayer(m); }
-    else { if (map.hasLayer(m)) map.removeLayer(m); }
-  });
-}
-
-// 色パレット
+// ========== 色パレット ==========
 var DISTINCT_COLORS=['#e63946','#2563eb','#16a34a','#f59e0b','#9333ea','#06b6d4','#dc2626','#0d9488','#ea580c','#4f46e5','#15803d','#db2777','#0284c7','#b45309','#7c3aed','#059669','#c026d3','#1d4ed8','#ca8a04','#be123c'];
 var AREA_ORDER={'治外法権':0,'第一エリア':1,'第二エリア':2,'第三エリア':3,'第四エリア':4,'第五エリア':5};
 
-// マップ初期化
+// ========== 状態管理 ==========
+var DATA=[],pharmacyGroups=[],inactiveMarkers=[],inactiveData=[];
+var routeLines=[],straightLines=[],customRouteLine=null,routeCache={};
+var activeArea='全て',activeGroupIndex=null,inactiveVisible=false,activeFacilityType='';
+var acPharmacy=null,acFacility=null;
+var dataErrors=0;
+
+// ========== マップ初期化 ==========
 var map=L.map('map',{center:[36.2,138.0],zoom:6,zoomControl:false});
 L.control.zoom({position:'topright'}).addTo(map);
 L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>',maxZoom:18}).addTo(map);
 
-// グローバル変数
-var DATA=[], pharmacyGroups=[], routeLines=[], customRouteLine=null, routeCache={};
-var activeArea='全て', activeGroupIndex=null;
-var acPharmacy=null, acFacility=null;
-
-// ========== CSV読み込み ==========
-function parseCSV(text) {
-  var lines = text.split('\n');
-  var headers = parseCSVLine(lines[0]);
-  var rows = [];
-  for (var i = 1; i < lines.length; i++) {
-    if (!lines[i].trim()) continue;
-    var values = parseCSVLine(lines[i]);
-    var obj = {};
-    headers.forEach(function(h, idx) { obj[h.trim()] = (values[idx] || '').trim(); });
-    rows.push(obj);
+// [F] 地図クリックで選択解除
+map.on('click',function(){
+  if(activeGroupIndex!==null){
+    document.querySelectorAll('.facility-list').forEach(function(el){el.classList.remove('open');});
+    document.querySelectorAll('.pharmacy-card').forEach(function(el){el.classList.remove('active');});
+    clearRoutes();clearStraightLines();
+    activeGroupIndex=null;
   }
+});
+
+// ========== CSV解析 ==========
+function parseCSV(text){
+  var lines=text.split('\n'),headers=parseCSVLine(lines[0]),rows=[];
+  for(var i=1;i<lines.length;i++){if(!lines[i].trim())continue;var v=parseCSVLine(lines[i]),obj={};headers.forEach(function(h,idx){obj[h.trim()]=(v[idx]||'').trim();});rows.push(obj);}
   return rows;
 }
+function parseCSVLine(line){
+  var result=[],current='',inQ=false;
+  for(var i=0;i<line.length;i++){var c=line[i];if(inQ){if(c==='"'&&line[i+1]==='"'){current+='"';i++;}else if(c==='"')inQ=false;else current+=c;}else{if(c==='"')inQ=true;else if(c===','){result.push(current);current='';}else current+=c;}}
+  result.push(current);return result;
+}
 
-function parseCSVLine(line) {
-  var result = [], current = '', inQuotes = false;
-  for (var i = 0; i < line.length; i++) {
-    var c = line[i];
-    if (inQuotes) {
-      if (c === '"' && line[i+1] === '"') { current += '"'; i++; }
-      else if (c === '"') inQuotes = false;
-      else current += c;
-    } else {
-      if (c === '"') inQuotes = true;
-      else if (c === ',') { result.push(current); current = ''; }
-      else current += c;
-    }
-  }
-  result.push(current);
+function csvToData(rows){
+  var pm={},errs=0;
+  rows.forEach(function(r){
+    var sn=r['店舗名称'],fn=r['担当施設名称'],sLat=parseFloat(r['店舗緯度']),sLng=parseFloat(r['店舗経度']),fLat=parseFloat(r['施設緯度']),fLng=parseFloat(r['施設経度']);
+    if(!sn||!fn||isNaN(sLat)||isNaN(sLng)||isNaN(fLat)||isNaN(fLng)){errs++;return;}
+    var key=r['店舗番号']+'_'+sn;
+    if(!pm[key])pm[key]={name:sn,storeNum:r['店舗番号'],address:r['店舗所在地']||'',area:r['エリア']||'',lat:sLat,lng:sLng,role:r['役割']||'コア',facilities:[]};
+    pm[key].facilities.push({name:fn,type:r['施設形態']||'',address:r['施設所在地']||'',lat:fLat,lng:fLng,patients:r['担当患者数']||'',frequency:r['配達頻度']||''});
+  });
+  dataErrors=errs;
+  var result=Object.values(pm);
+  result.sort(function(a,b){var ao=AREA_ORDER[a.area]!==undefined?AREA_ORDER[a.area]:99;var bo=AREA_ORDER[b.area]!==undefined?AREA_ORDER[b.area]:99;return ao-bo||a.name.localeCompare(b.name);});
   return result;
 }
 
-function csvToData(rows) {
-  var pharmacyMap = {};
-  rows.forEach(function(r) {
-    var storeName = r['店舗名称'];
-    var facilityName = r['担当施設名称'];
-    var storeLat = parseFloat(r['店舗緯度']);
-    var storeLng = parseFloat(r['店舗経度']);
-    var facLat = parseFloat(r['施設緯度']);
-    var facLng = parseFloat(r['施設経度']);
-
-    if (!storeName || !facilityName || isNaN(storeLat) || isNaN(storeLng) || isNaN(facLat) || isNaN(facLng)) return;
-
-    var key = r['店舗番号'] + '_' + storeName;
-    if (!pharmacyMap[key]) {
-      pharmacyMap[key] = {
-        name: storeName,
-        storeNum: r['店舗番号'],
-        address: r['店舗所在地'] || '',
-        area: r['エリア'] || '',
-        lat: storeLat, lng: storeLng,
-        role: r['役割'] || 'コア',
-        facilities: []
-      };
-    }
-    pharmacyMap[key].facilities.push({
-      name: facilityName,
-      type: r['施設形態'] || '',
-      address: r['施設所在地'] || '',
-      lat: facLat, lng: facLng,
-      patients: r['担当患者数'] || '',
-      frequency: r['配達頻度'] || ''
-    });
-  });
-
-  var result = Object.values(pharmacyMap);
-  result.sort(function(a, b) {
-    var ao = AREA_ORDER[a.area] !== undefined ? AREA_ORDER[a.area] : 99;
-    var bo = AREA_ORDER[b.area] !== undefined ? AREA_ORDER[b.area] : 99;
-    return ao - bo || a.name.localeCompare(b.name);
-  });
-  return result;
-}
-
-function assignColors(data) {
-  var ag = {};
-  data.forEach(function(p, i) { if (!ag[p.area]) ag[p.area] = []; ag[p.area].push(i); });
-  var colorMap = {};
-  var golden = (1 + Math.sqrt(5)) / 2, nc = DISTINCT_COLORS.length;
-  Object.keys(ag).forEach(function(area) {
-    var indices = ag[area];
-    var ao = (AREA_ORDER[area] || 0) * 7;
-    indices.forEach(function(idx, j) {
-      var ci = (Math.floor((j * golden * nc) % nc) + ao) % nc;
-      colorMap[idx] = DISTINCT_COLORS[ci];
-    });
-  });
-  return colorMap;
+function assignColors(data){
+  var ag={};data.forEach(function(p,i){if(!ag[p.area])ag[p.area]=[];ag[p.area].push(i);});
+  var cm={},golden=(1+Math.sqrt(5))/2,nc=DISTINCT_COLORS.length;
+  Object.keys(ag).forEach(function(area){var indices=ag[area],ao=(AREA_ORDER[area]||0)*7;indices.forEach(function(idx,j){cm[idx]=DISTINCT_COLORS[(Math.floor((j*golden*nc)%nc)+ao)%nc];});});
+  return cm;
 }
 
 // ========== アイコン ==========
@@ -355,10 +258,15 @@ function createPharmacyIcon(color,role){
 function createFacilityIcon(color){
   return L.divIcon({html:'<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><circle cx="11" cy="11" r="9" fill="'+color+'" stroke="#fff" stroke-width="1.5" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,0.3))"/><rect x="7" y="10" width="8" height="6" rx="0.5" fill="#fff"/><polygon points="11,5 5.5,11 16.5,11" fill="#fff"/></svg>',className:'',iconSize:[22,22],iconAnchor:[11,11],popupAnchor:[0,-11]});
 }
+function createDiamondIcon(){
+  return L.divIcon({html:'<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="14" height="14" rx="2" fill="#9ca3af" stroke="#fff" stroke-width="2" transform="rotate(45 12 12)" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3))"/></svg>',className:'',iconSize:[24,24],iconAnchor:[12,12],popupAnchor:[0,-12]});
+}
 
 // ========== ルート ==========
 function clearRoutes(){routeLines.forEach(function(l){map.removeLayer(l);});routeLines=[];}
+function clearStraightLines(){straightLines.forEach(function(l){map.removeLayer(l);});straightLines=[];}
 function clearCustomRoute(){if(customRouteLine){map.removeLayer(customRouteLine);customRouteLine=null;}document.getElementById('routeResult').classList.remove('show');}
+
 function fetchRoute(fLat,fLng,tLat,tLng,cb){
   var key=fLat+','+fLng+'>'+tLat+','+tLng;
   if(routeCache[key]){cb(routeCache[key]);return;}
@@ -369,126 +277,194 @@ function fetchRoute(fLat,fLng,tLat,tLng,cb){
 }
 function formatDistance(m){return m<1000?Math.round(m)+'m':(m/1000).toFixed(1)+'km';}
 function formatDuration(s){var mins=Math.round(s/60);if(mins<60)return mins+'分';var h=Math.floor(mins/60),m=mins%60;return h+'時間'+(m>0?m+'分':'');}
-function drawRoute(geom,color,dash){
-  var coords=geom.coordinates.map(function(c){return[c[1],c[0]];});
-  var opts={color:color,weight:4,opacity:0.7,lineCap:'round'};
-  if(dash)opts.dashArray='8,6';
-  return L.polyline(coords,opts).addTo(map);
+
+// [I] 直線距離を計算
+function straightDist(lat1,lng1,lat2,lng2){
+  var R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
-function fetchRoutesForGroup(gi){
-  var g=pharmacyGroups[gi],p=g.data,color=g.color,delay=0;
+
+// [I] 薬局選択時：直線のみ表示
+function drawStraightLinesForGroup(gi){
+  var g=pharmacyGroups[gi],p=g.data;
   p.facilities.forEach(function(f,fi){
+    var line=L.polyline([[p.lat,p.lng],[f.lat,f.lng]],{color:'#94a3b8',weight:2,opacity:0.5,dashArray:'6,4'}).addTo(map);
+    straightLines.push(line);
+    var dist=straightDist(p.lat,p.lng,f.lat,f.lng);
     var el=document.getElementById('route-info-'+gi+'-'+fi);
-    if(!el)return;
-    el.innerHTML='<span class="route-loading">ルート取得中...</span>';
-    setTimeout(function(){
-      fetchRoute(p.lat,p.lng,f.lat,f.lng,function(res){
-        if(res){el.innerHTML='<div class="facility-route-info"><span class="route-badge">🚗 '+formatDistance(res.distance)+'</span><span class="route-badge">⏱ '+formatDuration(res.duration)+'</span></div>';routeLines.push(drawRoute(res.geometry,color,true));}
-        else el.innerHTML='<div class="facility-route-info"><span style="color:#999;font-size:10px">ルート取得不可</span></div>';
-      });
-    },delay);delay+=300;
+    if(el)el.innerHTML='<div class="facility-route-info"><span class="route-badge">📏 直線 '+formatDistance(dist)+'</span></div><div class="route-click-hint" onclick="event.stopPropagation();fetchRealRoute('+gi+','+fi+')">▶ 実ルートを取得</div>';
   });
 }
 
+// [I] 施設クリック or リンククリック時：実ルート取得
+function fetchRealRoute(gi,fi){
+  var g=pharmacyGroups[gi],p=g.data,f=p.facilities[fi],color=g.color;
+  var el=document.getElementById('route-info-'+gi+'-'+fi);
+  if(el)el.innerHTML='<div class="facility-route-info"><span style="color:#999;font-size:9px">🔄 実ルート取得中...</span></div>';
+  fetchRoute(p.lat,p.lng,f.lat,f.lng,function(res){
+    if(res){
+      if(el)el.innerHTML='<div class="facility-route-info"><span class="route-badge">🚗 '+formatDistance(res.distance)+'</span><span class="route-badge">⏱ '+formatDuration(res.duration)+'</span></div>';
+      var coords=res.geometry.coordinates.map(function(c){return[c[1],c[0]];});
+      var rl=L.polyline(coords,{color:color,weight:4,opacity:0.7,dashArray:'8,6',lineCap:'round'}).addTo(map);
+      routeLines.push(rl);
+    } else {
+      if(el)el.innerHTML='<div class="facility-route-info"><span style="color:#e63946;font-size:9px">⚠ 実ルート取得不可</span></div>';
+    }
+  });
+}
+
+// ========== 未実施店舗 ==========
+function loadInactiveStores(cb){
+  fetch(INACTIVE_CSV_URL).then(function(r){return r.text();}).then(function(csv){
+    var rows=parseCSV(csv),icon=createDiamondIcon(),count=0;
+    rows.forEach(function(r){
+      var lat=parseFloat(r['緯度']),lng=parseFloat(r['経度']);if(isNaN(lat)||isNaN(lng))return;
+      var mk=L.marker([lat,lng],{icon:icon}).bindPopup('<div class="popup-type" style="color:#9ca3af">◇ 施設在宅未実施</div><div class="popup-title">'+(r['店舗名']||'')+'</div><div class="popup-address">'+(r['住所']||'')+'</div><div class="popup-detail">'+(r['エリア']||'')+'</div>');
+      inactiveMarkers.push(mk);
+      inactiveData.push({name:r['店舗名']||'',area:r['エリア']||'',addr:r['住所']||'',lat:lat,lng:lng,storeNum:r['店舗番号']||''});
+      count++;
+    });
+    document.getElementById('inactiveCountStat').textContent=count;
+    if(acPharmacy)inactiveData.forEach(function(s,i){acPharmacy._addItem({value:'inactive-'+i,label:s.name+'（未実施）',sub:s.area+' ／ '+s.addr});});
+    if(cb)cb();
+  }).catch(function(err){console.log('未実施読込エラー:',err);if(cb)cb();});
+}
+function toggleInactiveStores(){
+  var btn=document.getElementById('toggleInactive');
+  inactiveVisible=!inactiveVisible;
+  btn.classList.toggle('active',inactiveVisible);
+  inactiveMarkers.forEach(function(m){if(inactiveVisible){if(!map.hasLayer(m))map.addLayer(m);}else{if(map.hasLayer(m))map.removeLayer(m);}});
+}
+
+// ========== [C] 施設形態フィルタ ==========
+function buildFacilityTypeFilter(){
+  var types={};
+  DATA.forEach(function(p){p.facilities.forEach(function(f){if(f.type)types[f.type]=true;});});
+  // キーワードで分類
+  var categories=[
+    {label:'特別養護老人ホーム',keywords:['特養','特別養護']},
+    {label:'有料老人ホーム',keywords:['有料老人ホーム']},
+    {label:'住宅型有料老人ホーム',keywords:['住宅型有料']},
+    {label:'介護付有料老人ホーム',keywords:['介護付']},
+    {label:'サービス付き高齢者向け住宅',keywords:['サ高住','サービス付き高齢者']},
+    {label:'グループホーム',keywords:['グループホーム','グループハウス']},
+    {label:'介護老人保健施設',keywords:['老健','介護老人保健']},
+    {label:'小規模多機能',keywords:['小規模多機能']},
+    {label:'ケアハウス',keywords:['ケアハウス','軽費老人ホーム']},
+    {label:'デイサービス',keywords:['デイサービス','通所介護']},
+    {label:'障害者施設',keywords:['障害']},
+    {label:'医療機関',keywords:['医療機関','病院','クリニック']},
+  ];
+  var sel=document.getElementById('facilityTypeFilter');
+  categories.forEach(function(cat){
+    // この分類に該当する施設が実データにあるか確認
+    var found=Object.keys(types).some(function(t){return cat.keywords.some(function(kw){return t.indexOf(kw)>=0;});});
+    if(found){var opt=document.createElement('option');opt.value=cat.keywords.join('|');opt.textContent=cat.label;sel.appendChild(opt);}
+  });
+}
+
+function matchesFacilityType(facilityType,filterValue){
+  if(!filterValue)return true;
+  var keywords=filterValue.split('|');
+  return keywords.some(function(kw){return facilityType.indexOf(kw)>=0;});
+}
+
 // ========== オートコンプリート ==========
-function createAutocomplete(containerId, items, placeholder) {
-  var container=document.getElementById(containerId);
-  var selectedValue=null, highlightIdx=-1;
+function createAutocomplete(containerId,items,placeholder){
+  var container=document.getElementById(containerId),selectedValue=null,highlightIdx=-1;
   var input=document.createElement('input');input.type='text';input.className='autocomplete-input';input.placeholder=placeholder;
   var tag=document.createElement('div');tag.className='selected-tag';tag.style.display='none';
   var listEl=document.createElement('div');listEl.className='autocomplete-list';
   var wrapper=document.createElement('div');wrapper.className='autocomplete-wrapper';
   wrapper.appendChild(input);wrapper.appendChild(tag);wrapper.appendChild(listEl);container.appendChild(wrapper);
-  function renderList(q){
-    listEl.innerHTML='';highlightIdx=-1;q=(q||'').toLowerCase();
-    var matched=items.filter(function(it){return it.label.toLowerCase().indexOf(q)>=0||(it.sub&&it.sub.toLowerCase().indexOf(q)>=0);});
-    if(!matched.length){listEl.innerHTML='<div style="padding:12px;font-size:12px;color:#999;text-align:center">該当なし</div>';listEl.classList.add('show');return;}
-    matched.slice(0,50).forEach(function(it){
-      var div=document.createElement('div');div.className='autocomplete-item';
-      div.innerHTML='<span class="autocomplete-item-name">'+it.label+'</span>'+(it.sub?'<span class="autocomplete-item-sub">'+it.sub+'</span>':'');
-      div.addEventListener('mousedown',function(e){e.preventDefault();selectItem(it);});
-      listEl.appendChild(div);
-    });
-    listEl.classList.add('show');
-  }
-  function selectItem(it){
-    selectedValue=it.value;input.style.display='none';tag.style.display='flex';
-    tag.innerHTML='<span>'+it.label+'</span><button class="clear-btn" title="クリア">✕</button>';
-    tag.querySelector('.clear-btn').addEventListener('click',function(){clearSel();});
-    listEl.classList.remove('show');checkReady();
-  }
+  function renderList(q){listEl.innerHTML='';highlightIdx=-1;q=(q||'').toLowerCase();var matched=items.filter(function(it){return it.label.toLowerCase().indexOf(q)>=0||(it.sub&&it.sub.toLowerCase().indexOf(q)>=0);});
+    if(!matched.length){listEl.innerHTML='<div style="padding:10px;font-size:11px;color:#999;text-align:center">該当なし</div>';listEl.classList.add('show');return;}
+    matched.slice(0,50).forEach(function(it){var div=document.createElement('div');div.className='autocomplete-item';div.innerHTML='<span class="autocomplete-item-name">'+it.label+'</span>'+(it.sub?'<span class="autocomplete-item-sub">'+it.sub+'</span>':'');div.addEventListener('mousedown',function(e){e.preventDefault();selectItem(it);});listEl.appendChild(div);});listEl.classList.add('show');}
+  function selectItem(it){selectedValue=it.value;input.style.display='none';tag.style.display='flex';tag.innerHTML='<span>'+it.label+'</span><button class="clear-btn" title="クリア">✕</button>';tag.querySelector('.clear-btn').addEventListener('click',function(){clearSel();});listEl.classList.remove('show');checkReady();}
   function clearSel(){selectedValue=null;input.style.display='';input.value='';tag.style.display='none';listEl.classList.remove('show');input.focus();checkReady();}
-  input.addEventListener('focus',function(){renderList(input.value);});
-  input.addEventListener('input',function(){renderList(input.value);});
+  input.addEventListener('focus',function(){renderList(input.value);});input.addEventListener('input',function(){renderList(input.value);});
   input.addEventListener('blur',function(){setTimeout(function(){listEl.classList.remove('show');},200);});
-  input.addEventListener('keydown',function(e){
-    var items=listEl.querySelectorAll('.autocomplete-item');
-    if(e.key==='ArrowDown'){e.preventDefault();highlightIdx=Math.min(highlightIdx+1,items.length-1);upHL(items);}
-    else if(e.key==='ArrowUp'){e.preventDefault();highlightIdx=Math.max(highlightIdx-1,0);upHL(items);}
-    else if(e.key==='Enter'&&highlightIdx>=0&&items[highlightIdx]){e.preventDefault();items[highlightIdx].dispatchEvent(new Event('mousedown'));}
-  });
-  function upHL(items){items.forEach(function(el,i){el.classList.toggle('highlighted',i===highlightIdx);});if(items[highlightIdx])items[highlightIdx].scrollIntoView({block:'nearest'});}
-  var api = {getValue:function(){return selectedValue;},clear:clearSel,_addItem:function(it){items.push(it);}};
-  return api;
+  input.addEventListener('keydown',function(e){var its=listEl.querySelectorAll('.autocomplete-item');if(e.key==='ArrowDown'){e.preventDefault();highlightIdx=Math.min(highlightIdx+1,its.length-1);upHL(its);}else if(e.key==='ArrowUp'){e.preventDefault();highlightIdx=Math.max(highlightIdx-1,0);upHL(its);}else if(e.key==='Enter'&&highlightIdx>=0&&its[highlightIdx]){e.preventDefault();its[highlightIdx].dispatchEvent(new Event('mousedown'));}});
+  function upHL(its){its.forEach(function(el,i){el.classList.toggle('highlighted',i===highlightIdx);});if(its[highlightIdx])its[highlightIdx].scrollIntoView({block:'nearest'});}
+  return{getValue:function(){return selectedValue;},clear:clearSel,_addItem:function(it){items.push(it);}};
 }
-
 function checkReady(){document.getElementById('routeSearchBtn').disabled=!(acPharmacy&&acPharmacy.getValue()!==null&&acFacility&&acFacility.getValue()!==null);}
 
 function searchCustomRoute(){
-  var pVal=acPharmacy.getValue();var fVal=acFacility.getValue();
-  var parts=fVal.split('-');var origPIdx=parseInt(parts[0]),fIdx=parseInt(parts[1]);
+  var pVal=acPharmacy.getValue(),fVal=acFacility.getValue();
+  var parts=fVal.split('-'),origPIdx=parseInt(parts[0]),fIdx=parseInt(parts[1]);
   var pharmacy;
   if(typeof pVal==='string'&&pVal.indexOf('inactive-')===0){
     var inIdx=parseInt(pVal.replace('inactive-',''));
     pharmacy={name:inactiveData[inIdx].name,lat:inactiveData[inIdx].lat,lng:inactiveData[inIdx].lng,address:inactiveData[inIdx].addr};
-  } else {
-    pharmacy=DATA[pVal];
-  }
+  }else{pharmacy=DATA[pVal];}
   var facility=DATA[origPIdx].facilities[fIdx];
-  clearCustomRoute();clearRoutes();
+  clearCustomRoute();clearRoutes();clearStraightLines();
   document.getElementById('routeResultNames').innerHTML='<b>薬局：</b>'+pharmacy.name+'<br><b>施設：</b>'+facility.name;
   document.getElementById('routeResultDetail').innerHTML='<span style="color:#999">検索中...</span>';
   document.getElementById('routeResult').classList.add('show');
   map.fitBounds(L.latLngBounds([[pharmacy.lat,pharmacy.lng],[facility.lat,facility.lng]]),{padding:[100,100],maxZoom:14});
   fetchRoute(pharmacy.lat,pharmacy.lng,facility.lat,facility.lng,function(res){
-    if(res){document.getElementById('routeResultDetail').innerHTML='<span class="route-result-badge">🚗 '+formatDistance(res.distance)+'</span><span class="route-result-badge">⏱ '+formatDuration(res.duration)+'</span>';customRouteLine=drawRoute(res.geometry,'#f43f5e',false);}
+    if(res){document.getElementById('routeResultDetail').innerHTML='<span class="route-result-badge">🚗 '+formatDistance(res.distance)+'</span><span class="route-result-badge">⏱ '+formatDuration(res.duration)+'</span>';var coords=res.geometry.coordinates.map(function(c){return[c[1],c[0]];});customRouteLine=L.polyline(coords,{color:'#f43f5e',weight:4,opacity:0.8,lineCap:'round'}).addTo(map);}
     else document.getElementById('routeResultDetail').innerHTML='<span style="color:#e63946">ルートを取得できませんでした</span>';
   });
 }
 
-// ========== タブ・フィルター・サイドバー ==========
+// ========== タブ・フィルター ==========
 function switchTab(t){document.querySelectorAll('.tab-btn').forEach(function(b,i){b.classList.toggle('active',i===(t==='list'?0:1));});document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active');});document.getElementById('tab-'+t).classList.add('active');}
 
 function buildAreaFilters(){
-  var AREA_NAMES=['全て','治外法権','第一エリア','第二エリア','第三エリア','第四エリア','第五エリア'];
-  var filtersDiv=document.getElementById('areaFilters');filtersDiv.innerHTML='';
-  AREA_NAMES.forEach(function(area){
-    var btn=document.createElement('button');btn.className='area-btn'+(area==='全て'?' active':'');btn.textContent=area;
-    btn.onclick=function(){activeArea=area;document.querySelectorAll('.area-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');updateVisibility();renderSidebar();};
-    filtersDiv.appendChild(btn);
+  var names=['全て','治外法権','第一エリア','第二エリア','第三エリア','第四エリア','第五エリア'];
+  var div=document.getElementById('areaFilters');div.innerHTML='';
+  names.forEach(function(area){var btn=document.createElement('button');btn.className='area-btn'+(area==='全て'?' active':'');btn.textContent=area;btn.onclick=function(){activeArea=area;document.querySelectorAll('.area-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');onFilterChange();};div.appendChild(btn);});
+}
+
+function updateVisibility(){
+  pharmacyGroups.forEach(function(g){
+    var visible=activeArea==='全て'||g.data.area===activeArea;
+    // [C] 施設形態フィルタ：この薬局が担当する施設のいずれかがマッチするか
+    if(visible&&activeFacilityType){visible=g.data.facilities.some(function(f){return matchesFacilityType(f.type,activeFacilityType);});}
+    g.markers.forEach(function(m){if(visible){if(!map.hasLayer(m))map.addLayer(m);}else{if(map.hasLayer(m))map.removeLayer(m);}});
   });
 }
 
-function updateVisibility(){pharmacyGroups.forEach(function(g){var v=activeArea==='全て'||g.data.area===activeArea;g.markers.forEach(function(m){if(v){if(!map.hasLayer(m))map.addLayer(m);}else{if(map.hasLayer(m))map.removeLayer(m);}});});}
+function onFilterChange(){
+  activeFacilityType=document.getElementById('facilityTypeFilter').value;
+  updateVisibility();renderSidebar();
+}
 
+var activeGroupIndex=null;
 function renderSidebar(){
   var filter=document.getElementById('searchInput').value.trim().toLowerCase();
   var list=document.getElementById('pharmacyList');list.innerHTML='';
   var totalP=0,totalF=0,areas={},currentArea='';
+  var anyResult=false;
+
   pharmacyGroups.forEach(function(group,i){
     var p=group.data;
     if(activeArea!=='全て'&&p.area!==activeArea)return;
-    var mP=p.name.toLowerCase().indexOf(filter)>=0||p.address.toLowerCase().indexOf(filter)>=0;
-    var mF=p.facilities.some(function(f){return f.name.toLowerCase().indexOf(filter)>=0||f.address.toLowerCase().indexOf(filter)>=0;});
+    // [C] 施設形態フィルタ
+    if(activeFacilityType&&!p.facilities.some(function(f){return matchesFacilityType(f.type,activeFacilityType);}))return;
+    // [D] 拡充された検索
+    var mP=p.name.toLowerCase().indexOf(filter)>=0||p.address.toLowerCase().indexOf(filter)>=0||(p.area&&p.area.toLowerCase().indexOf(filter)>=0);
+    var mF=p.facilities.some(function(f){return f.name.toLowerCase().indexOf(filter)>=0||f.address.toLowerCase().indexOf(filter)>=0||(f.type&&f.type.toLowerCase().indexOf(filter)>=0);});
     if(filter&&!mP&&!mF)return;
-    totalP++;totalF+=p.facilities.length;areas[p.area]=true;
+
+    anyResult=true;totalP++;totalF+=p.facilities.length;areas[p.area]=true;
     if(p.area!==currentArea){currentArea=p.area;var lbl=document.createElement('div');lbl.className='area-section-label';lbl.textContent=p.area;list.appendChild(lbl);}
     var div=document.createElement('div');
-    div.innerHTML='<div class="pharmacy-card'+(activeGroupIndex===i?' active':'')+'" id="pcard-'+i+'"><div class="color-dot" style="background:'+group.color+'"></div><div class="pharmacy-info"><div class="pharmacy-name">'+p.name+'</div><div class="pharmacy-meta">'+p.address+'</div></div><span class="facility-count">'+p.facilities.length+'施設</span></div><div class="facility-list'+(activeGroupIndex===i?' open':'')+'" id="flist-'+i+'">'+p.facilities.map(function(f,fi){return'<div class="facility-item" data-gi="'+i+'" data-fi="'+fi+'"><div class="facility-item-header"><span class="facility-icon-small">🏠</span>'+f.name+'</div><div id="route-info-'+i+'-'+fi+'"></div></div>';}).join('')+'</div>';
+    div.innerHTML='<div class="pharmacy-card'+(activeGroupIndex===i?' active':'')+'" id="pcard-'+i+'"><div class="color-dot" style="background:'+group.color+'"></div><div class="pharmacy-info"><div class="pharmacy-name">'+p.name+'</div><div class="pharmacy-meta">'+p.address+'</div></div><span class="facility-count">'+p.facilities.length+'施設</span></div><div class="facility-list'+(activeGroupIndex===i?' open':'')+'" id="flist-'+i+'">'+p.facilities.map(function(f,fi){return'<div class="facility-item" data-gi="'+i+'" data-fi="'+fi+'"><div class="facility-item-header"><span class="facility-icon-small">🏠</span>'+f.name+(f.type?' <span style="font-size:9px;color:#aaa">'+f.type+'</span>':'')+'</div><div id="route-info-'+i+'-'+fi+'"></div></div>';}).join('')+'</div>';
     div.querySelector('.pharmacy-card').addEventListener('click',function(){toggleFacilities(i);});
     div.querySelectorAll('.facility-item').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();focusFacility(parseInt(el.dataset.gi),parseInt(el.dataset.fi));});});
     list.appendChild(div);
   });
+
+  // [E] 0件メッセージ
+  if(!anyResult){
+    list.innerHTML='<div class="no-results"><div class="no-results-icon">🔍</div>該当する薬局・施設が見つかりません<div class="no-results-text">検索条件やフィルタを変更してみてください</div></div>';
+  }
+
   document.getElementById('pharmacyCount').textContent=totalP;
   document.getElementById('facilityCount').textContent=totalF;
   document.getElementById('areaCount').textContent=Object.keys(areas).length;
@@ -498,63 +474,61 @@ function toggleFacilities(index){
   var wasActive=activeGroupIndex===index;
   document.querySelectorAll('.facility-list').forEach(function(el){el.classList.remove('open');});
   document.querySelectorAll('.pharmacy-card').forEach(function(el){el.classList.remove('active');});
-  clearRoutes();clearCustomRoute();
+  clearRoutes();clearStraightLines();clearCustomRoute();
   if(!wasActive){
     var fl=document.getElementById('flist-'+index),cd=document.getElementById('pcard-'+index);
     if(fl)fl.classList.add('open');if(cd)cd.classList.add('active');
     activeGroupIndex=index;
     map.fitBounds(L.latLngBounds(pharmacyGroups[index].markers.map(function(m){return m.getLatLng();})),{padding:[80,80],maxZoom:14});
-    fetchRoutesForGroup(index);
+    // [I] 直線のみ表示
+    drawStraightLinesForGroup(index);
   }else activeGroupIndex=null;
 }
-function focusFacility(gi,fi){var mk=pharmacyGroups[gi].markers[fi+1];map.setView(mk.getLatLng(),15,{animate:true});mk.openPopup();}
+function focusFacility(gi,fi){
+  var mk=pharmacyGroups[gi].markers[fi+1];
+  map.setView(mk.getLatLng(),15,{animate:true});mk.openPopup();
+  // [I] 施設クリックで実ルート取得
+  fetchRealRoute(gi,fi);
+}
 
-// ========== メイン：CSV取得→マップ構築 ==========
-fetch(SHEET_CSV_URL)
-  .then(function(res) { return res.text(); })
-  .then(function(csvText) {
-    var rows = parseCSV(csvText);
-    DATA = csvToData(rows);
-    var colorMap = assignColors(DATA);
+// ========== メイン読み込み ==========
+fetch(SHEET_CSV_URL).then(function(res){return res.text();}).then(function(csvText){
+  var rows=parseCSV(csvText);
+  DATA=csvToData(rows);
+  var colorMap=assignColors(DATA);
 
-    // マーカー配置
-    DATA.forEach(function(p, i) {
-      var color = colorMap[i] || '#6b7280', markers = [];
-      markers.push(L.marker([p.lat, p.lng], {icon: createPharmacyIcon(color, p.role)}).bindPopup('<div class="popup-type">💊 薬局</div><div class="popup-title">' + p.name + '</div><div class="popup-address">' + p.address + '</div><div class="popup-detail">' + p.area + ' ／ ' + p.facilities.length + '施設担当</div>').addTo(map));
-      p.facilities.forEach(function(f) {
-        markers.push(L.marker([f.lat, f.lng], {icon: createFacilityIcon(color)}).bindPopup('<div class="popup-type">🏠 ' + (f.type || '施設') + '</div><div class="popup-title">' + f.name + '</div><div class="popup-address">' + f.address + '</div><div class="popup-parent">担当：' + p.name + '</div>' + (f.patients ? '<div class="popup-detail">' + f.patients + ' ／ ' + f.frequency + '</div>' : '')).addTo(map));
-      });
-      pharmacyGroups.push({data: p, color: color, markers: markers});
+  DATA.forEach(function(p,i){
+    var color=colorMap[i]||'#6b7280',markers=[];
+    markers.push(L.marker([p.lat,p.lng],{icon:createPharmacyIcon(color,p.role)}).bindPopup('<div class="popup-type">💊 薬局</div><div class="popup-title">'+p.name+'</div><div class="popup-address">'+p.address+'</div><div class="popup-detail">'+p.area+' ／ '+p.facilities.length+'施設担当</div>').addTo(map));
+    p.facilities.forEach(function(f){
+      markers.push(L.marker([f.lat,f.lng],{icon:createFacilityIcon(color)}).bindPopup('<div class="popup-type">🏠 '+(f.type||'施設')+'</div><div class="popup-title">'+f.name+'</div><div class="popup-address">'+f.address+'</div><div class="popup-parent">担当：'+p.name+'</div>'+(f.patients?'<div class="popup-detail">'+f.patients+' ／ '+f.frequency+'</div>':'')).addTo(map));
     });
-
-    // オートコンプリート構築
-    var pharmacyItems = DATA.map(function(p, i) { return {value: i, label: p.name, sub: p.area + ' ／ ' + p.address}; });
-    var facilityItems = [];
-    DATA.forEach(function(p, pi) {
-      p.facilities.forEach(function(f, fi) {
-        facilityItems.push({value: pi + '-' + fi, label: f.name, sub: '現担当：' + p.name + ' ／ ' + (f.type || '')});
-      });
-    });
-    acPharmacy = createAutocomplete('pharmacySelector', pharmacyItems, '薬局名を入力...');
-    acFacility = createAutocomplete('facilitySelector', facilityItems, '施設名を入力...');
-
-    // UI構築
-    buildAreaFilters();
-    renderSidebar();
-
-    // 未実施店舗を読み込み
-    loadInactiveStores();
-
-    // ローディング非表示
-    document.getElementById('loadingOverlay').style.display = 'none';
-  })
-  .catch(function(err) {
-    document.getElementById('loadingOverlay').innerHTML =
-      '<div style="text-align:center;padding:40px"><div style="font-size:20px;margin-bottom:12px">⚠️ データの読み込みに失敗しました</div>' +
-      '<div style="font-size:14px;color:#666;margin-bottom:8px">スプレッドシートの公開設定を確認してください</div>' +
-      '<div style="font-size:12px;color:#999">' + err.message + '</div>' +
-      '<button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;background:#3b5cff;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer">再読み込み</button></div>';
+    pharmacyGroups.push({data:p,color:color,markers:markers});
   });
+
+  // オートコンプリート
+  var pItems=DATA.map(function(p,i){return{value:i,label:p.name,sub:p.area+' ／ '+p.address};});
+  var fItems=[];DATA.forEach(function(p,pi){p.facilities.forEach(function(f,fi){fItems.push({value:pi+'-'+fi,label:f.name,sub:'現担当：'+p.name+' ／ '+(f.type||'')});});});
+  acPharmacy=createAutocomplete('pharmacySelector',pItems,'薬局名を入力...');
+  acFacility=createAutocomplete('facilitySelector',fItems,'施設名を入力...');
+
+  buildAreaFilters();
+  buildFacilityTypeFilter();
+  renderSidebar();
+
+  // [A] 最終更新日時
+  document.getElementById('metaUpdated').textContent='📅 '+new Date().toLocaleDateString('ja-JP');
+
+  // [B] データ品質表示
+  if(dataErrors>0)document.getElementById('metaErrors').innerHTML='<span class="warn">⚠ 欠損 '+dataErrors+'件</span>';
+
+  // 未実施店舗読み込み
+  loadInactiveStores(function(){
+    document.getElementById('loadingOverlay').style.display='none';
+  });
+}).catch(function(err){
+  document.getElementById('loadingOverlay').innerHTML='<div style="text-align:center;padding:40px"><div style="font-size:20px;margin-bottom:12px">⚠️ データの読み込みに失敗しました</div><div style="font-size:14px;color:#666;margin-bottom:8px">スプレッドシートの公開設定を確認してください</div><div style="font-size:12px;color:#999">'+err.message+'</div><button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;background:#3b5cff;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer">再読み込み</button></div>';
+});
 </script>
 </body>
 </html>
