@@ -108,6 +108,7 @@ body{font-family:'Noto Sans JP','IBM Plex Sans',sans-serif;background:var(--bg-p
 .leaflet-popup-tip{background:#fff !important}
 .leaflet-popup-content{margin:12px 14px !important;font-family:'Noto Sans JP',sans-serif !important;font-size:12px !important;line-height:1.6 !important}
 .popup-title{font-weight:600;font-size:13px;margin-bottom:3px}.popup-type{font-size:10px;color:var(--text-muted);margin-bottom:4px}.popup-address{font-size:11px;color:var(--text-secondary)}.popup-parent{font-size:10px;color:var(--accent);margin-top:3px;font-weight:500}.popup-detail{font-size:10px;color:var(--text-muted);margin-top:2px}
+.popup-visit{margin-top:6px;padding:6px 8px;background:#f5f3ff;border:1px solid #e0dbff;border-radius:6px}.popup-visit-title{font-size:10px;font-weight:600;color:#7c3aed;margin-bottom:3px}.popup-visit-row{font-size:10px;color:#5b21b6;line-height:1.5}.popup-visit-note{font-size:9px;color:#6d28d9;margin-top:3px;padding-top:3px;border-top:1px solid #e0dbff;line-height:1.4}
 .leaflet-control-zoom{border:1px solid var(--border) !important;border-radius:10px !important;overflow:hidden;box-shadow:var(--shadow-md) !important}
 .leaflet-control-zoom a{background:#fff !important;color:var(--text-primary) !important;border-bottom:1px solid var(--border) !important;width:34px !important;height:34px !important;line-height:34px !important}
 .loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px}
@@ -230,7 +231,7 @@ function csvToData(rows){
     if(!sn||!fn||isNaN(sLat)||isNaN(sLng)||isNaN(fLat)||isNaN(fLng)){errs++;return;}
     var key=r['店舗番号']+'_'+sn;
     if(!pm[key])pm[key]={name:sn,storeNum:r['店舗番号'],address:r['店舗所在地']||'',area:r['エリア']||'',lat:sLat,lng:sLng,role:r['役割']||'コア',facilities:[]};
-    pm[key].facilities.push({name:fn,type:r['施設形態']||'',address:r['施設所在地']||'',lat:fLat,lng:fLng,patients:r['担当患者数']||'',frequency:r['配達頻度']||''});
+    pm[key].facilities.push({name:fn,type:r['施設形態']||'',address:r['施設所在地']||'',lat:fLat,lng:fLng,patients:r['担当患者数']||'',frequency:r['配達頻度']||'',visitFlag:r['往診同行有無']||'',visitIrai:r['往診同行_依頼先']||'',visitDay:r['往診同行_往診曜日']||'',visitTime:r['往診同行_時間帯']||'',visitNinzu:r['往診同行_人数']||'',visitNote:r['往診同行_特記事項']||''});
   });
   dataErrors=errs;
   var result=Object.values(pm);
@@ -451,7 +452,7 @@ function renderSidebar(){
     // 店舗番号 + 店舗名称で表示
     var displayName=(p.storeNum?p.storeNum+' ':'')+p.name;
     var div=document.createElement('div');
-    div.innerHTML='<div class="pharmacy-card'+(activeGroupIndex===i?' active':'')+'" id="pcard-'+i+'"><div class="color-dot" style="background:'+group.color+'"></div><div class="pharmacy-info"><div class="pharmacy-name">'+displayName+'</div><div class="pharmacy-meta">'+p.address+'</div></div><span class="facility-count">'+p.facilities.length+'施設</span></div><div class="facility-list'+(activeGroupIndex===i?' open':'')+'" id="flist-'+i+'">'+p.facilities.map(function(f,fi){return'<div class="facility-item" data-gi="'+i+'" data-fi="'+fi+'"><div class="facility-item-header"><span class="facility-icon-small">🏠</span>'+f.name+(f.type?' <span style="font-size:9px;color:#aaa">'+f.type+'</span>':'')+'</div><div id="route-info-'+i+'-'+fi+'"></div></div>';}).join('')+'</div>';
+    div.innerHTML='<div class="pharmacy-card'+(activeGroupIndex===i?' active':'')+'" id="pcard-'+i+'"><div class="color-dot" style="background:'+group.color+'"></div><div class="pharmacy-info"><div class="pharmacy-name">'+displayName+'</div><div class="pharmacy-meta">'+p.address+'</div></div><span class="facility-count">'+p.facilities.length+'施設</span></div><div class="facility-list'+(activeGroupIndex===i?' open':'')+'" id="flist-'+i+'">'+p.facilities.map(function(f,fi){return'<div class="facility-item" data-gi="'+i+'" data-fi="'+fi+'"><div class="facility-item-header"><span class="facility-icon-small">🏠</span>'+f.name+(f.type?' <span style="font-size:9px;color:#aaa">'+f.type+'</span>':'')+(f.visitFlag==='あり'?' <span style="font-size:9px;color:#7c3aed" title="往診同行あり">🩺</span>':'')+'</div><div id="route-info-'+i+'-'+fi+'"></div></div>';}).join('')+'</div>';
     div.querySelector('.pharmacy-card').addEventListener('click',function(){toggleFacilities(i);});
     div.querySelectorAll('.facility-item').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();focusFacility(parseInt(el.dataset.gi),parseInt(el.dataset.fi));});});
     list.appendChild(div);
@@ -536,7 +537,9 @@ fetch(SHEET_CSV_URL).then(function(res){return res.text();}).then(function(csvTe
     var color=colorMap[i]||'#6b7280',markers=[];
     markers.push(L.marker([p.lat,p.lng],{icon:createPharmacyIcon(color,p.role)}).bindPopup('<div class="popup-type">💊 薬局</div><div class="popup-title">'+(p.storeNum?p.storeNum+' ':'')+p.name+'</div><div class="popup-address">'+p.address+'</div><div class="popup-detail">'+p.area+' ／ '+p.facilities.length+'施設担当</div>').addTo(map));
     p.facilities.forEach(function(f){
-      markers.push(L.marker([f.lat,f.lng],{icon:createFacilityIcon(color)}).bindPopup('<div class="popup-type">🏠 '+(f.type||'施設')+'</div><div class="popup-title">'+f.name+'</div><div class="popup-address">'+f.address+'</div><div class="popup-parent">担当：'+(p.storeNum?p.storeNum+' ':'')+p.name+'</div>'+(f.patients?'<div class="popup-detail">'+f.patients+' ／ '+f.frequency+'</div>':'')).addTo(map));
+      var popupHtml='<div class="popup-type">🏠 '+(f.type||'施設')+'</div><div class="popup-title">'+f.name+'</div><div class="popup-address">'+f.address+'</div><div class="popup-parent">担当：'+(p.storeNum?p.storeNum+' ':'')+p.name+'</div>'+(f.patients?'<div class="popup-detail">'+f.patients+' ／ '+f.frequency+'</div>':'');
+      if(f.visitFlag==='あり'){popupHtml+='<div class="popup-visit"><div class="popup-visit-title">🩺 往診同行情報</div>';if(f.visitIrai)popupHtml+='<div class="popup-visit-row">依頼先：'+f.visitIrai+'</div>';if(f.visitDay)popupHtml+='<div class="popup-visit-row">曜日：'+f.visitDay+'</div>';if(f.visitTime)popupHtml+='<div class="popup-visit-row">時間：'+f.visitTime+'</div>';if(f.visitNinzu)popupHtml+='<div class="popup-visit-row">人数：'+f.visitNinzu+'</div>';if(f.visitNote)popupHtml+='<div class="popup-visit-note">📝 '+f.visitNote+'</div>';popupHtml+='</div>';}
+      markers.push(L.marker([f.lat,f.lng],{icon:createFacilityIcon(color)}).bindPopup(popupHtml,{maxWidth:280}).addTo(map));
     });
     pharmacyGroups.push({data:p,color:color,markers:markers});
   });
