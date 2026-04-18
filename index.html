@@ -561,7 +561,7 @@ fetch(SHEET_CSV_URL).then(function(res){return res.text();}).then(function(csvTe
         var pStr=String(f.patients).trim();
         // 末尾が「人」で終わっていなければ付ける（ただし数値や漢字数字のみの場合など）
         if(pStr&&!/人\s*$/.test(pStr))pStr=pStr+'人';
-        var detail='患者数'+esc(pStr);
+        var detail='患者数：'+esc(pStr);
         if(f.frequency)detail+='／配達頻度'+esc(f.frequency);
         popupHtml+='<div class="popup-detail">'+detail+'</div>';
       }
