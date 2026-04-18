@@ -209,7 +209,7 @@ var INACTIVE_CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQItIRx7q0
 
 // ========== 色パレット ==========
 var DISTINCT_COLORS=['#e63946','#2563eb','#16a34a','#f59e0b','#9333ea','#06b6d4','#dc2626','#0d9488','#ea580c','#4f46e5','#15803d','#db2777','#0284c7','#b45309','#7c3aed','#059669','#c026d3','#1d4ed8','#ca8a04','#be123c'];
-var AREA_ORDER={'治外法権':0,'第一エリア':1,'第二エリア':2,'第三エリア':3,'第四エリア':4,'第五エリア':5};
+var AREA_ORDER={'直轄':0,'第一エリア':1,'第二エリア':2,'第三エリア':3,'第四エリア':4,'第五エリア':5};
 
 // ========== 状態管理 ==========
 var DATA=[],pharmacyGroups=[],inactiveMarkers=[],inactiveData=[];
@@ -427,7 +427,7 @@ function searchCustomRoute(){
 function switchTab(t){document.querySelectorAll('.tab-btn').forEach(function(b,i){b.classList.toggle('active',i===(t==='list'?0:1));});document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active');});document.getElementById('tab-'+t).classList.add('active');}
 
 function buildAreaFilters(){
-  var names=['全て','治外法権','第一エリア','第二エリア','第三エリア','第四エリア','第五エリア'];
+  var names=['全て','直轄','第一エリア','第二エリア','第三エリア','第四エリア','第五エリア'];
   var div=document.getElementById('areaFilters');div.innerHTML='';
   names.forEach(function(area){var btn=document.createElement('button');btn.className='area-btn'+(area==='全て'?' active':'');btn.textContent=area;btn.onclick=function(){activeArea=area;document.querySelectorAll('.area-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');onFilterChange();};div.appendChild(btn);});
 }
