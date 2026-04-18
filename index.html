@@ -345,7 +345,7 @@ function toggleInactiveStores(){
   var btn=document.getElementById('toggleInactive');
   inactiveVisible=!inactiveVisible;
   btn.classList.toggle('active',inactiveVisible);
-  inactiveMarkers.forEach(function(m){if(inactiveVisible){if(!map.hasLayer(m))map.addLayer(m);}else{if(map.hasLayer(m))map.removeLayer(m);}});
+  updateVisibility();
   renderSidebar();
 }
 
@@ -439,6 +439,12 @@ function updateVisibility(){
     if(visible&&activeFacilityType){visible=g.data.facilities.some(function(f){return matchesFacilityType(f.type,activeFacilityType);});}
     g.markers.forEach(function(m){if(visible){if(!map.hasLayer(m))map.addLayer(m);}else{if(map.hasLayer(m))map.removeLayer(m);}});
   });
+  // [案C] 未実施マーカーもエリア連動（inactiveVisible=ON かつ「全て」or 所属エリア一致 のときだけ表示）
+  inactiveMarkers.forEach(function(m,i){
+    var s=inactiveData[i];
+    var vis=inactiveVisible&&(activeArea==='全て'||(s&&s.area===activeArea));
+    if(vis){if(!map.hasLayer(m))map.addLayer(m);}else{if(map.hasLayer(m))map.removeLayer(m);}
+  });
 }
 
 function onFilterChange(){
@@ -488,7 +494,7 @@ function renderSidebar(){
       var secLabel=document.createElement('div');
       secLabel.className='area-section-label';
       secLabel.style.color='#6b7280';
-      secLabel.textContent='施設在宅未実施（'+inactiveFiltered.length+'店舗）';
+      secLabel.textContent=(activeArea==='全て'?'施設在宅未実施（全国 ':'施設在宅未実施（')+inactiveFiltered.length+'店舗）';
       list.appendChild(secLabel);
       inactiveFiltered.forEach(function(s){
         var origIdx=inactiveData.indexOf(s);
