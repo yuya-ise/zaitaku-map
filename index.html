@@ -562,7 +562,7 @@ fetch(SHEET_CSV_URL).then(function(res){return res.text();}).then(function(csvTe
         // 末尾が「人」で終わっていなければ付ける（ただし数値や漢字数字のみの場合など）
         if(pStr&&!/人\s*$/.test(pStr))pStr=pStr+'人';
         var detail='患者数：'+esc(pStr);
-        if(f.frequency)detail+='／配達頻度'+esc(f.frequency);
+        if(f.frequency)detail+='／配達頻度：'+esc(f.frequency);
         popupHtml+='<div class="popup-detail">'+detail+'</div>';
       }
       // v6.1: 算定の有無（常時表示）・非算定の理由（S=無 かつ T≠空欄 の時のみ表示）
