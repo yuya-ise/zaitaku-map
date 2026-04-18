@@ -246,7 +246,7 @@ function csvToData(rows){
     if(!sn||!fn||isNaN(sLat)||isNaN(sLng)||isNaN(fLat)||isNaN(fLng)){errs++;return;}
     var key=r['店舗番号']+'_'+sn;
     if(!pm[key])pm[key]={name:sn,storeNum:r['店舗番号'],address:r['店舗所在地']||'',area:r['エリア']||'',lat:sLat,lng:sLng,role:r['役割']||'コア',facilities:[]};
-    pm[key].facilities.push({name:fn,type:r['施設形態']||'',address:r['施設所在地']||'',lat:fLat,lng:fLng,patients:r['担当患者数']||'',frequency:r['配達頻度']||'',visitFlag:r['往診同行有無']||'',visitIrai:r['往診同行_依頼先']||'',visitDay:r['往診同行_往診曜日']||'',visitTime:r['往診同行_時間帯']||'',visitNinzu:r['往診同行_人数']||'',visitNote:r['往診同行_特記事項']||'',unbilledStatus:r['未算定施設']||'',nonbillableStatus:r['算定不可施設']||''});
+    pm[key].facilities.push({name:fn,type:r['施設形態']||'',address:r['施設所在地']||'',lat:fLat,lng:fLng,patients:r['担当患者数']||'',frequency:r['配達頻度']||'',visitFlag:r['往診同行有無']||'',visitIrai:r['往診同行_依頼先']||'',visitDay:r['往診同行_往診曜日']||'',visitTime:r['往診同行_時間帯']||'',visitNinzu:r['往診同行_人数']||'',visitNote:r['往診同行_特記事項']||'',unbilledStatus:r['未算定施設']||'',nonbillableStatus:r['算定不可施設']||'',keisanStatus:r['算定の有無']||'',keisanReason:r['非算定の理由']||''});
   });
   dataErrors=errs;
   var result=Object.values(pm);
@@ -565,13 +565,24 @@ fetch(SHEET_CSV_URL).then(function(res){return res.text();}).then(function(csvTe
         if(f.frequency)detail+='／配達頻度'+esc(f.frequency);
         popupHtml+='<div class="popup-detail">'+detail+'</div>';
       }
-      // 未算定施設・算定不可施設（CSV値: 有/無/空欄）
-      // - 「有」なら強調色、「無」なら通常色、空欄なら「-」表示（データなし明示）
-      var ubRaw=String(f.unbilledStatus||'').trim();
-      var nbRaw=String(f.nonbillableStatus||'').trim();
-      var ubDisp=ubRaw==='有'?'<span class="status-yes">有</span>':(ubRaw==='無'?'<span class="status-no">無</span>':'<span class="status-no">-</span>');
-      var nbDisp=nbRaw==='有'?'<span class="status-yes">有</span>':(nbRaw==='無'?'<span class="status-no">無</span>':'<span class="status-no">-</span>');
-      popupHtml+='<div class="popup-status"><span class="status-label">未算定施設：</span>'+ubDisp+'　<span class="status-label">算定不可施設：</span>'+nbDisp+'</div>';
+      // v6.1: 算定の有無（常時表示）・非算定の理由（S=無 かつ T≠空欄 の時のみ表示）
+      // 旧表示「未算定施設／算定不可施設」は撤去、新表示に置換
+      // 仕様:
+      //   - 算定の有無: 常時表示（有/無/不明）
+      //   - 非算定の理由: S='無' かつ T が空でないときのみ表示
+      //   - S='有' のときは、仮にTに値が残っていても理由は表示しない（データ不整合の二重防御）
+      //   - S が空欄・想定外値のときは「不明」と表示し、理由は出さない
+      var keisanRaw=String(f.keisanStatus||'').trim();
+      var reasonRaw=String(f.keisanReason||'').trim();
+      var keisanDisp;
+      if(keisanRaw==='有')keisanDisp='<span class="status-yes">有</span>';
+      else if(keisanRaw==='無')keisanDisp='<span class="status-no">無</span>';
+      else keisanDisp='<span class="status-no">不明</span>';
+      popupHtml+='<div class="popup-status"><span class="status-label">算定の有無：</span>'+keisanDisp+'</div>';
+      // v6.1: 厳密化 — S='無' のときだけ理由を表示
+      if(keisanRaw==='無' && reasonRaw!==''){
+        popupHtml+='<div class="popup-status"><span class="status-label">非算定の理由：</span>'+esc(reasonRaw)+'</div>';
+      }
       if(f.visitFlag==='あり'){popupHtml+='<div class="popup-visit"><div class="popup-visit-title">🩺 往診同行情報</div>';if(f.visitIrai)popupHtml+='<div class="popup-visit-row">依頼先：'+esc(f.visitIrai)+'</div>';if(f.visitDay)popupHtml+='<div class="popup-visit-row">曜日：'+esc(f.visitDay)+'</div>';if(f.visitTime)popupHtml+='<div class="popup-visit-row">時間：'+esc(f.visitTime)+'</div>';if(f.visitNinzu)popupHtml+='<div class="popup-visit-row">人数：'+esc(f.visitNinzu)+'</div>';if(f.visitNote)popupHtml+='<div class="popup-visit-note">📝 '+esc(f.visitNote)+'</div>';popupHtml+='</div>';}
       markers.push(L.marker([f.lat,f.lng],{icon:createFacilityIcon(color)}).bindPopup(popupHtml,{maxWidth:280}).addTo(map));
     });
