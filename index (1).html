@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>施設在宅マップ</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg-primary:#f5f6fa;--bg-sidebar:#fff;--bg-card:#f0f1f5;--bg-card-hover:#e8e9f0;--border:#dcdee6;--text-primary:#1a1c2e;--text-secondary:#5a5d78;--text-muted:#8b8ea8;--accent:#3b5cff;--accent-dim:rgba(59,92,255,0.1);--shadow-sm:0 1px 3px rgba(0,0,0,0.06);--shadow-md:0 4px 16px rgba(0,0,0,0.08);--shadow-lg:0 8px 32px rgba(0,0,0,0.1)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans JP','IBM Plex Sans',sans-serif;background:var(--bg-primary);color:var(--text-primary);height:100vh;overflow:hidden;display:flex}
+.sidebar{width:400px;min-width:400px;height:100vh;background:var(--bg-sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:1000;box-shadow:var(--shadow-md)}
+.sidebar-header{padding:16px 24px 12px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#f8f9ff 0%,#fff 100%)}
+.sidebar-header h1{font-size:18px;font-weight:600;display:flex;align-items:center;gap:10px}
+.sidebar-header h1 .icon-pill{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;box-shadow:0 2px 8px rgba(59,92,255,0.3)}
+.stats-bar{display:flex;gap:16px;margin-top:10px;flex-wrap:wrap}
+.stat-value{font-family:'IBM Plex Sans',sans-serif;font-size:22px;font-weight:600;color:var(--accent)}
+.stat-label{font-size:10px;color:var(--text-muted);letter-spacing:0.05em}
+.meta-bar{display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--text-muted);flex-wrap:wrap;align-items:center}
+.meta-bar .warn{color:#e63946;font-weight:500}
+.controls-wrapper{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;background:#fafbff}
+.search-container{position:relative}
+.search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:14px;pointer-events:none}
+.search-box{width:100%;padding:9px 14px 9px 38px;background:#fff;border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-family:inherit;font-size:13px;outline:none;box-shadow:var(--shadow-sm)}
+.search-box:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,92,255,0.12)}
+.search-target-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:2px}
+.search-target-label{font-size:10px;color:var(--text-muted);font-weight:500;margin-right:2px}
+.search-target-btn{padding:4px 10px;font-size:10px;font-family:inherit;font-weight:500;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+.search-target-btn:hover{background:var(--bg-card-hover)}
+.search-target-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 6px rgba(59,92,255,0.2)}
+.search-hint{font-size:10px;color:var(--text-muted);margin-top:-2px;padding:0 2px}
+.warning-bar{margin:6px 0 2px;padding:6px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:10px;color:#92400e;line-height:1.5}
+.warning-bar .wtitle{font-weight:600;margin-right:4px}
+.fatal-error{padding:24px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;color:#991b1b;max-width:520px;margin:20px auto;font-size:13px;line-height:1.6}
+.fatal-error h2{font-size:16px;margin-bottom:8px;color:#7f1d1d}
+.fatal-error code{background:#fff;padding:2px 6px;border-radius:4px;font-family:'IBM Plex Sans',monospace;font-size:11px;color:#7f1d1d;border:1px solid #fecaca}
+.filter-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.filter-label{font-size:10px;color:var(--text-muted);font-weight:500;margin-right:2px}
+.area-btn,.filter-btn{padding:4px 10px;font-size:10px;font-family:inherit;font-weight:500;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+.area-btn:hover,.filter-btn:hover{background:var(--bg-card-hover)}
+.area-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 6px rgba(59,92,255,0.2)}
+.filter-btn.active{background:#374151;border-color:#374151;color:#fff}
+.toggle-inactive{display:flex;align-items:center;gap:5px;padding:4px 10px;font-size:10px;font-family:inherit;font-weight:500;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text-muted);cursor:pointer}
+.toggle-inactive:hover{background:var(--bg-card-hover)}
+.toggle-inactive.active{background:#6b7280;border-color:#6b7280;color:#fff}
+.toggle-inactive .diamond{display:inline-block;width:8px;height:8px;background:#9ca3af;transform:rotate(45deg);border-radius:1px}
+.toggle-inactive.active .diamond{background:#fff}
+.facility-type-select{padding:4px 8px;font-size:10px;font-family:inherit;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text-secondary);outline:none;max-width:180px;cursor:pointer}
+.tab-bar{display:flex;border-bottom:1px solid var(--border)}
+.tab-btn{flex:1;padding:9px 0;font-size:12px;font-family:inherit;font-weight:500;border:none;background:transparent;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent}
+.tab-btn:hover{color:var(--text-primary);background:var(--bg-card)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none;flex:1;overflow-y:auto}
+.tab-content.active{display:flex;flex-direction:column}
+.route-panel{padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+.route-panel label{font-size:11px;font-weight:500;color:var(--text-secondary);margin-bottom:2px}
+.autocomplete-wrapper{position:relative}
+.autocomplete-input{width:100%;padding:9px 12px;background:#fff;border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:12px;color:var(--text-primary);outline:none}
+.autocomplete-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,92,255,0.12)}
+.autocomplete-input::placeholder{color:var(--text-muted)}
+.autocomplete-list{position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;box-shadow:var(--shadow-md);z-index:100;display:none}
+.autocomplete-list.show{display:block}
+.autocomplete-item{padding:8px 12px;font-size:11px;cursor:pointer;border-bottom:1px solid #f0f1f5;display:flex;flex-direction:column;gap:1px}
+.autocomplete-item:hover,.autocomplete-item.highlighted{background:var(--accent-dim)}
+.autocomplete-item-name{font-weight:500;color:var(--text-primary)}
+.autocomplete-item-sub{font-size:10px;color:var(--text-muted)}
+.autocomplete-list::-webkit-scrollbar{width:4px}
+.autocomplete-list::-webkit-scrollbar-thumb{background:#ccc;border-radius:4px}
+.selected-tag{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--accent-dim);border:1px solid rgba(59,92,255,0.2);border-radius:10px;font-size:12px;color:var(--accent);font-weight:500}
+.selected-tag .clear-btn{background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:0 2px;line-height:1}
+.selected-tag .clear-btn:hover{color:var(--text-primary)}
+.route-search-btn{padding:10px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(59,92,255,0.3)}
+.route-search-btn:hover{background:#2a4bef}
+.route-search-btn:disabled{background:#a0aec0;cursor:not-allowed;box-shadow:none}
+.route-result{padding:14px;background:var(--bg-card);border-radius:12px;display:none}
+.route-result.show{display:block}
+.route-result-title{font-size:12px;font-weight:600;margin-bottom:6px}
+.route-result-detail{display:flex;gap:10px;margin-top:6px}
+.route-result-badge{background:#eef2ff;color:#4f46e5;padding:3px 10px;border-radius:6px;font-weight:600;font-size:12px}
+.route-result-names{font-size:11px;color:var(--text-secondary);line-height:1.6;margin-top:4px}
+.route-clear-btn{padding:6px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:11px;cursor:pointer;margin-top:6px}
+.route-clear-btn:hover{background:var(--bg-card-hover);color:var(--text-primary)}
+.pharmacy-list{flex:1;overflow-y:auto;padding:6px 10px}
+.pharmacy-list::-webkit-scrollbar{width:5px}
+.pharmacy-list::-webkit-scrollbar-thumb{background:#cccfd8;border-radius:10px}
+.area-section-label{font-size:10px;font-weight:600;color:var(--accent);letter-spacing:0.06em;padding:12px 12px 4px;border-bottom:1px solid var(--border);margin-bottom:3px}
+.pharmacy-card{padding:8px 12px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:10px}
+.pharmacy-card:hover{background:var(--bg-card)}
+.pharmacy-card.active{background:var(--accent-dim);border:1px solid rgba(59,92,255,0.2)}
+.color-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0;box-shadow:var(--shadow-sm)}
+.pharmacy-info{flex:1;min-width:0}
+.pharmacy-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pharmacy-meta{font-size:10px;color:var(--text-secondary);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.facility-count{font-family:'IBM Plex Sans',sans-serif;background:var(--accent-dim);color:var(--accent);padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;flex-shrink:0}
+.facility-list{max-height:0;overflow:hidden;transition:max-height 0.3s ease;padding-left:22px}
+.facility-list.open{max-height:3000px}
+.facility-item{padding:7px 12px;font-size:11px;color:var(--text-secondary);border-left:2px solid var(--border);margin-left:6px;cursor:pointer;display:flex;align-items:flex-start;gap:6px;flex-direction:column}
+.facility-item:hover{color:var(--text-primary);border-left-color:var(--accent);background:var(--bg-card);border-radius:0 8px 8px 0}
+.facility-item-header{display:flex;align-items:center;gap:5px;width:100%}
+.facility-icon-small{font-size:9px;opacity:0.6}
+.facility-route-info{font-size:10px;color:var(--text-muted);display:flex;gap:8px;margin-top:1px;padding-left:16px}
+.route-badge{background:#eef2ff;color:#4f46e5;padding:1px 6px;border-radius:4px;font-weight:500;font-size:9px}
+.route-click-hint{font-size:9px;color:var(--accent);padding-left:16px;margin-top:1px;cursor:pointer}
+.route-click-hint:hover{text-decoration:underline}
+.no-results{padding:40px 20px;text-align:center;color:var(--text-muted);font-size:13px}
+.no-results-icon{font-size:32px;margin-bottom:8px}
+.no-results-text{font-size:12px;margin-top:4px;color:var(--text-muted)}
+.map-container{flex:1;position:relative}
+#map{width:100%;height:100%}
+.map-legend{position:absolute;bottom:20px;right:20px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 18px;z-index:999;box-shadow:var(--shadow-lg);font-size:11px}
+.legend-title{font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:8px}
+.legend-item{display:flex;align-items:center;gap:8px;margin-bottom:5px;color:var(--text-secondary)}
+.legend-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center}
+.sidebar-toggle{display:none;position:absolute;top:12px;left:12px;z-index:1001;width:44px;height:44px;background:#fff;border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-size:20px;cursor:pointer;align-items:center;justify-content:center;box-shadow:var(--shadow-md)}
+.leaflet-popup-content-wrapper{background:#fff !important;border:1px solid var(--border) !important;border-radius:12px !important;box-shadow:var(--shadow-lg) !important}
+.leaflet-popup-tip{background:#fff !important}
+.leaflet-popup-content{margin:12px 14px !important;font-family:'Noto Sans JP',sans-serif !important;font-size:12px !important;line-height:1.6 !important}
+.popup-title{font-weight:600;font-size:13px;margin-bottom:3px}.popup-type{font-size:10px;color:var(--text-muted);margin-bottom:4px}.popup-address{font-size:11px;color:var(--text-secondary)}.popup-parent{font-size:10px;color:var(--accent);margin-top:3px;font-weight:500}.popup-detail{font-size:10px;color:var(--text-muted);margin-top:2px}
+.popup-status{font-size:10px;color:var(--text-secondary);margin-top:2px;line-height:1.6}.popup-status .status-label{color:var(--text-muted)}.popup-status .status-yes{color:#059669;font-weight:600}.popup-status .status-no{color:var(--text-muted)}
+.popup-visit{margin-top:6px;padding:6px 8px;background:#f5f3ff;border:1px solid #e0dbff;border-radius:6px}.popup-visit-title{font-size:10px;font-weight:600;color:#7c3aed;margin-bottom:3px}.popup-visit-row{font-size:10px;color:#5b21b6;line-height:1.5}.popup-visit-note{font-size:9px;color:#6d28d9;margin-top:3px;padding-top:3px;border-top:1px solid #e0dbff;line-height:1.4}
+.leaflet-control-zoom{border:1px solid var(--border) !important;border-radius:10px !important;overflow:hidden;box-shadow:var(--shadow-md) !important}
+.leaflet-control-zoom a{background:#fff !important;color:var(--text-primary) !important;border-bottom:1px solid var(--border) !important;width:34px !important;height:34px !important;line-height:34px !important}
+.loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px}
+.loading-spinner{width:44px;height:44px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;color:var(--text-secondary);font-weight:500}
+.loading-sub{font-size:11px;color:var(--text-muted)}
+@media(max-width:768px){.sidebar{position:absolute;transform:translateX(-100%);width:340px;min-width:340px}.sidebar.open{transform:translateX(0)}.sidebar-toggle{display:flex}}
+</style>
+</head>
+<body>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">施設在宅マップを読み込み中...</div>
+  <div class="loading-sub">スプレッドシートからデータを取得しています</div>
+</div>
+<button class="sidebar-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+<div class="sidebar">
+  <div class="sidebar-header">
+    <h1><span class="icon-pill">💊</span>施設在宅マップ</h1>
+    <div class="stats-bar">
+      <div class="stat"><span class="stat-value" id="pharmacyCount">0</span><span class="stat-label">薬局</span></div>
+      <div class="stat"><span class="stat-value" id="facilityCount">0</span><span class="stat-label">施設</span></div>
+      <div class="stat"><span class="stat-value" id="areaCount">0</span><span class="stat-label">エリア</span></div>
+      <div class="stat"><span class="stat-value" id="inactiveCountStat">0</span><span class="stat-label">未実施</span></div>
+    </div>
+    <div class="meta-bar">
+      <span id="metaUpdated">📅 --</span>
+      <span id="metaErrors"></span>
+    </div>
+    <div id="warningArea"></div>
+  </div>
+  <div class="controls-wrapper">
+    <div class="search-target-row" id="searchTargetRow">
+      <span class="search-target-label">検索対象:</span>
+      <button type="button" class="search-target-btn active" data-field="storeNum">店舗番号</button>
+      <button type="button" class="search-target-btn" data-field="pharmacy">薬局名</button>
+      <button type="button" class="search-target-btn" data-field="facility">施設名</button>
+      <button type="button" class="search-target-btn" data-field="address">住所</button>
+    </div>
+    <div class="search-container">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-box" placeholder="店舗番号を入力（例：75）" id="searchInput" inputmode="numeric" oninput="onFilterChange()">
+    </div>
+    <div class="search-hint" id="searchHint">※「店舗番号」は完全一致／その他は部分一致で検索します（全角・半角どちらでもOK）</div>
+    <div class="filter-row" id="areaFilters"></div>
+    <div class="filter-row">
+      <span class="filter-label">形態:</span>
+      <select class="facility-type-select" id="facilityTypeFilter" onchange="onFilterChange()">
+        <option value="">すべて</option>
+      </select>
+      <button class="toggle-inactive" id="toggleInactive" onclick="toggleInactiveStores()"><span class="diamond"></span>未実施</button>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('list')">📋 薬局一覧</button>
+    <button class="tab-btn" onclick="switchTab('route')">🔍 ルート検索</button>
+  </div>
+  <div class="tab-content active" id="tab-list">
+    <div class="pharmacy-list" id="pharmacyList"></div>
+  </div>
+  <div class="tab-content" id="tab-route">
+    <div class="route-panel">
+      <div><label>① 薬局を選択</label><div id="pharmacySelector"></div></div>
+      <div><label>② 施設を選択</label><div id="facilitySelector"></div></div>
+      <button class="route-search-btn" id="routeSearchBtn" onclick="searchCustomRoute()" disabled>ルートを検索</button>
+      <div class="route-result" id="routeResult">
+        <div class="route-result-title">検索結果</div>
+        <div class="route-result-names" id="routeResultNames"></div>
+        <div class="route-result-detail" id="routeResultDetail"></div>
+        <button class="route-clear-btn" onclick="clearCustomRoute()">ルートをクリア</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="map-container">
+  <div id="map"></div>
+  <div class="map-legend">
+    <div class="legend-title">凡例</div>
+    <div class="legend-item"><div class="legend-icon"><svg width="18" height="18" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="3" fill="#3b5cff" stroke="#fff" stroke-width="1.5"/><line x1="10" y1="5" x2="10" y2="15" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><line x1="5" y1="10" x2="15" y2="10" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg></div>薬局</div>
+    <div class="legend-item"><div class="legend-icon"><svg width="18" height="18" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="#3b5cff" stroke="#fff" stroke-width="1.5"/><rect x="6" y="9" width="8" height="6" rx="0.5" fill="#fff"/><polygon points="10,5 5,10 15,10" fill="#fff"/></svg></div>施設</div>
+    <div class="legend-item"><div class="legend-icon"><svg width="18" height="18" viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10" rx="1" fill="#9ca3af" stroke="#fff" stroke-width="1.5" transform="rotate(45 10 10)"/></svg></div>未実施店舗</div>
+    <div class="legend-item"><div class="legend-icon"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/></svg></div>直線距離</div>
+    <div class="legend-item"><div class="legend-icon"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#3b5cff" stroke-width="3" stroke-dasharray="6,4"/></svg></div>実ルート</div>
+    <div class="legend-item"><div class="legend-icon"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#f43f5e" stroke-width="3"/></svg></div>カスタムルート</div>
+  </div>
+</div>
+<script>
+// ========== v5.1 HTMLエスケープユーティリティ ==========
+// CSV由来のスプレッドシート文字列を innerHTML/bindPopup に連結する際、
+// HTML特殊文字をエスケープしてXSSを防止する。
+// 施設名・住所・店舗名などに < > & " ' が含まれても崩れない。
+function esc(s){
+  if(s===null||s===undefined)return '';
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+// ========== データURL ==========
+var SHEET_CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQItIRx7q0uY8gXB91QxXGJ6pzv39ElKNlCGiIPCaCheWkymFbBjmUeM2HEmeKH0V0UQULS0_tsFdeI/pub?gid=1251366496&single=true&output=csv';
+var INACTIVE_CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQItIRx7q0uY8gXB91QxXGJ6pzv39ElKNlCGiIPCaCheWkymFbBjmUeM2HEmeKH0V0UQULS0_tsFdeI/pub?gid=839239590&single=true&output=csv';
+
+// ========== 色パレット ==========
+var DISTINCT_COLORS=['#e63946','#2563eb','#16a34a','#f59e0b','#9333ea','#06b6d4','#dc2626','#0d9488','#ea580c','#4f46e5','#15803d','#db2777','#0284c7','#b45309','#7c3aed','#059669','#c026d3','#1d4ed8','#ca8a04','#be123c'];
+var AREA_ORDER={'直轄':0,'第一エリア':1,'第二エリア':2,'第三エリア':3,'第四エリア':4,'第五エリア':5};
+
+// ========== 状態管理 ==========
+var DATA=[],pharmacyGroups=[],inactiveMarkers=[],inactiveData=[];
+var routeLines=[],straightLines=[],customRouteLine=null,routeCache={};
+var activeArea='全て',activeGroupIndex=null,inactiveVisible=false,activeFacilityType='';
+var activeSearchField='storeNum'; // 検索対象（storeNum / pharmacy / facility / address）デフォルト＝店舗番号
+var acPharmacy=null,acFacility=null;
+var dataErrors=0;
+var unknownRoleStores=[]; // 役割が「コア」「サテライト」以外の店舗（警告用）
+var searchDebounceTimer=null;
+
+// ========== v6.2 検索ユーティリティ ==========
+// NFKC正規化＋全角空白→半角＋連続空白圧縮＋trim。
+// 「７５」「　75　」「７ ５」などの表記揺れを安全な範囲で吸収する。
+// 意味が変わる過剰な正規化（カタカナ↔ひらがな等）はしない。
+function normalizeStr(s){
+  if(s===null||s===undefined)return '';
+  var str=String(s);
+  if(str.normalize)str=str.normalize('NFKC'); // 全角英数→半角、互換文字統合
+  str=str.replace(/\u3000/g,' ');             // 全角空白→半角空白
+  str=str.replace(/\s+/g,' ');                // 連続空白圧縮
+  return str.trim();
+}
+function normalizeForPartial(s){
+  return normalizeStr(s).toLowerCase();
+}
+var SEARCH_PLACEHOLDERS={
+  storeNum:'店舗番号を入力（例：75）',
+  pharmacy:'薬局名の一部を入力（例：豊橋市）',
+  facility:'施設名の一部を入力',
+  address:'住所の一部を入力（例：豊橋市）'
+};
+var SEARCH_HINTS={
+  storeNum:'※「店舗番号」は完全一致／全角・半角どちらでもOK（例：「75」も「７５」もヒット）',
+  pharmacy:'※「薬局名」は部分一致で検索します（例：「豊橋市」で「豊橋市大清水店」「豊橋市高師店」等）',
+  facility:'※「施設名」は部分一致で検索します',
+  address:'※「住所」は部分一致で検索します（薬局住所・施設住所のどちらかを対象）'
+};
+
+// ========== v6.2 必須ヘッダー検証 ==========
+// 必須列（地図描画に必須・1つでも欠けたら処理停止）
+var REQUIRED_HEADERS=['店舗番号','店舗名称','店舗緯度','店舗経度','担当施設名称','施設緯度','施設経度'];
+// 補助列（欠けても地図は描画可能・画面上部に警告のみ）
+var OPTIONAL_HEADERS=['エリア','店舗所在地','役割','施設形態','施設所在地','担当患者数','配達頻度','往診同行有無','往診同行_依頼先','往診同行_往診曜日','往診同行_時間帯','往診同行_人数','往診同行_特記事項','算定の有無','非算定の理由'];
+function validateHeaders(rows){
+  if(!rows||rows.length===0)return{ok:false,missing:REQUIRED_HEADERS.slice(),missingOptional:[]};
+  var actual=Object.keys(rows[0]);
+  var missing=REQUIRED_HEADERS.filter(function(h){return actual.indexOf(h)<0;});
+  var missingOpt=OPTIONAL_HEADERS.filter(function(h){return actual.indexOf(h)<0;});
+  return{ok:missing.length===0,missing:missing,missingOptional:missingOpt};
+}
+
+// ========== v6.2 フィルタ・検索判定（共通） ==========
+// updateVisibility / renderSidebar / 未実施店舗フィルタ で同一ロジックを使うための共通判定。
+// これにより「サイドバーは絞れたが地図は絞れていない」といったズレを構造的に防止する。
+function getCurrentSearchState(){
+  var rawInput=document.getElementById('searchInput').value;
+  return{
+    raw:rawInput,
+    hasFilter:rawInput.trim().length>0,
+    field:activeSearchField,
+    partial:normalizeForPartial(rawInput),
+    exact:normalizeStr(rawInput).replace(/^0+/,'') // 店舗番号用：先頭ゼロ除去で「075」も「75」とマッチ
+  };
+}
+function pharmacyMatchesSearch(p,st){
+  if(!st.hasFilter)return true;
+  if(st.field==='storeNum'){
+    var sn=normalizeStr(p.storeNum).replace(/^0+/,'');
+    return sn!==''&&sn===st.exact;
+  }
+  if(st.field==='pharmacy')return normalizeForPartial(p.name).indexOf(st.partial)>=0;
+  if(st.field==='facility')return p.facilities.some(function(f){return normalizeForPartial(f.name).indexOf(st.partial)>=0;});
+  if(st.field==='address')return normalizeForPartial(p.address).indexOf(st.partial)>=0
+    ||p.facilities.some(function(f){return normalizeForPartial(f.address).indexOf(st.partial)>=0;});
+  return false;
+}
+function inactiveStoreMatchesSearch(s,st){
+  if(!st.hasFilter)return true;
+  if(st.field==='storeNum'){
+    var sn=normalizeStr(s.storeNum).replace(/^0+/,'');
+    return sn!==''&&sn===st.exact;
+  }
+  if(st.field==='pharmacy')return normalizeForPartial(s.name).indexOf(st.partial)>=0;
+  if(st.field==='address')return normalizeForPartial(s.addr).indexOf(st.partial)>=0;
+  // 施設名は未実施店舗には施設情報が無いので対象外
+  return false;
+}
+
+// ========== マップ初期化 ==========
+var map=L.map('map',{center:[36.2,138.0],zoom:6,zoomControl:false});
+L.control.zoom({position:'topright'}).addTo(map);
+L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>',maxZoom:18}).addTo(map);
+
+// [F] 地図クリックで選択解除
+map.on('click',function(){
+  if(activeGroupIndex!==null){
+    document.querySelectorAll('.facility-list').forEach(function(el){el.classList.remove('open');});
+    document.querySelectorAll('.pharmacy-card').forEach(function(el){el.classList.remove('active');});
+    clearRoutes();clearStraightLines();
+    activeGroupIndex=null;
+  }
+});
+
+// ========== CSV解析（PapaParse使用） ==========
+function parseCSV(text){
+  var result=Papa.parse(text,{header:true,skipEmptyLines:true,transformHeader:function(h){return h.trim();},transform:function(v){return v.trim();}});
+  return result.data;
+}
+
+function csvToData(rows){
+  var pm={},errs=0;
+  unknownRoleStores=[]; // 役割が「コア」「サテライト」以外の店舗を記録（警告用）
+  rows.forEach(function(r){
+    var sn=r['店舗番号'],fn=r['担当施設名称'];
+    var sLat=parseFloat(r['店舗緯度']),sLng=parseFloat(r['店舗経度']);
+    var fLat=parseFloat(r['施設緯度']),fLng=parseFloat(r['施設経度']);
+    var snStr=sn===null||sn===undefined?'':String(sn).trim();
+    var name=r['店舗名称'];
+    // v6.2 必須項目欠落行はスキップ（店舗番号空欄のゴミ行も含む）
+    if(!snStr||!name||!fn||isNaN(sLat)||isNaN(sLng)||isNaN(fLat)||isNaN(fLng)){errs++;return;}
+    // v6.2 薬局キーは店舗番号単独（実データで店舗番号がユニークであることを確認済み）
+    var key=snStr;
+    if(!pm[key]){
+      // v6.2 役割は「コア」「サテライト」のときだけ採用。
+      // それ以外（空欄・typo・想定外値）は '' とし、createPharmacyIcon 側で通常サイズ描画。
+      // 未確定値を勝手に「コア」と決め打ちしないことで、誤表示を防ぐ。
+      var roleRaw=String(r['役割']||'').trim();
+      var role=(roleRaw==='コア'||roleRaw==='サテライト')?roleRaw:'';
+      if(role===''&&unknownRoleStores.indexOf(snStr)<0)unknownRoleStores.push(snStr);
+      pm[key]={name:name,storeNum:snStr,address:r['店舗所在地']||'',area:r['エリア']||'',lat:sLat,lng:sLng,role:role,facilities:[]};
+    }
+    pm[key].facilities.push({name:fn,type:r['施設形態']||'',address:r['施設所在地']||'',lat:fLat,lng:fLng,patients:r['担当患者数']||'',frequency:r['配達頻度']||'',visitFlag:r['往診同行有無']||'',visitIrai:r['往診同行_依頼先']||'',visitDay:r['往診同行_往診曜日']||'',visitTime:r['往診同行_時間帯']||'',visitNinzu:r['往診同行_人数']||'',visitNote:r['往診同行_特記事項']||'',unbilledStatus:r['未算定施設']||'',nonbillableStatus:r['算定不可施設']||'',keisanStatus:r['算定の有無']||'',keisanReason:r['非算定の理由']||''});
+  });
+  dataErrors=errs;
+  var result=Object.values(pm);
+  result.sort(function(a,b){var ao=AREA_ORDER[a.area]!==undefined?AREA_ORDER[a.area]:99;var bo=AREA_ORDER[b.area]!==undefined?AREA_ORDER[b.area]:99;return ao-bo||a.name.localeCompare(b.name);});
+  return result;
+}
+
+function assignColors(data){
+  var ag={};data.forEach(function(p,i){if(!ag[p.area])ag[p.area]=[];ag[p.area].push(i);});
+  var cm={},golden=(1+Math.sqrt(5))/2,nc=DISTINCT_COLORS.length;
+  Object.keys(ag).forEach(function(area){var indices=ag[area],ao=(AREA_ORDER[area]||0)*7;indices.forEach(function(idx,j){cm[idx]=DISTINCT_COLORS[(Math.floor((j*golden*nc)%nc)+ao)%nc];});});
+  return cm;
+}
+
+// ========== アイコン ==========
+function createPharmacyIcon(color,role){
+  var s=role==='サテライト'?24:32,h=s/2,rx=role==='サテライト'?4:6,lw=role==='サテライト'?2:3,p=Math.round(s*0.13),o=role==='サテライト'?0.6:1;
+  return L.divIcon({html:'<svg width="'+s+'" height="'+s+'" viewBox="0 0 '+s+' '+s+'" xmlns="http://www.w3.org/2000/svg"><rect x="'+p+'" y="'+p+'" width="'+(s-p*2)+'" height="'+(s-p*2)+'" rx="'+rx+'" fill="'+color+'" stroke="#fff" stroke-width="2" opacity="'+o+'" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,0.35))"/><line x1="'+h+'" y1="'+(p+3)+'" x2="'+h+'" y2="'+(s-p-3)+'" stroke="#fff" stroke-width="'+lw+'" stroke-linecap="round"/><line x1="'+(p+3)+'" y1="'+h+'" x2="'+(s-p-3)+'" y2="'+h+'" stroke="#fff" stroke-width="'+lw+'" stroke-linecap="round"/></svg>',className:'',iconSize:[s,s],iconAnchor:[h,h],popupAnchor:[0,-h]});
+}
+function createFacilityIcon(color){
+  return L.divIcon({html:'<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg"><circle cx="11" cy="11" r="9" fill="'+color+'" stroke="#fff" stroke-width="1.5" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,0.3))"/><rect x="7" y="10" width="8" height="6" rx="0.5" fill="#fff"/><polygon points="11,5 5.5,11 16.5,11" fill="#fff"/></svg>',className:'',iconSize:[22,22],iconAnchor:[11,11],popupAnchor:[0,-11]});
+}
+function createDiamondIcon(){
+  return L.divIcon({html:'<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="14" height="14" rx="2" fill="#9ca3af" stroke="#fff" stroke-width="2" transform="rotate(45 12 12)" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3))"/></svg>',className:'',iconSize:[24,24],iconAnchor:[12,12],popupAnchor:[0,-12]});
+}
+
+// ========== ルート ==========
+function clearRoutes(){routeLines.forEach(function(l){map.removeLayer(l);});routeLines=[];}
+function clearStraightLines(){straightLines.forEach(function(l){map.removeLayer(l);});straightLines=[];}
+function clearCustomRoute(){if(customRouteLine){map.removeLayer(customRouteLine);customRouteLine=null;}document.getElementById('routeResult').classList.remove('show');}
+
+function fetchRoute(fLat,fLng,tLat,tLng,cb){
+  var key=fLat+','+fLng+'>'+tLat+','+tLng;
+  if(routeCache[key]){cb(routeCache[key]);return;}
+  fetch('https://router.project-osrm.org/route/v1/driving/'+fLng+','+fLat+';'+tLng+','+tLat+'?overview=full&geometries=geojson')
+  .then(function(r){return r.json();}).then(function(d){
+    if(d.code==='Ok'&&d.routes&&d.routes.length>0){var rt=d.routes[0];var res={distance:rt.distance,duration:rt.duration,geometry:rt.geometry};routeCache[key]=res;cb(res);}else cb(null);
+  }).catch(function(){cb(null);});
+}
+function formatDistance(m){return m<1000?Math.round(m)+'m':(m/1000).toFixed(1)+'km';}
+function formatDuration(s){var mins=Math.round(s/60);if(mins<60)return mins+'分';var h=Math.floor(mins/60),m=mins%60;return h+'時間'+(m>0?m+'分':'');}
+
+// [I] 直線距離を計算
+function straightDist(lat1,lng1,lat2,lng2){
+  var R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// [I] 薬局選択時：直線のみ表示
+function drawStraightLinesForGroup(gi){
+  var g=pharmacyGroups[gi],p=g.data;
+  p.facilities.forEach(function(f,fi){
+    var line=L.polyline([[p.lat,p.lng],[f.lat,f.lng]],{color:'#94a3b8',weight:2,opacity:0.5,dashArray:'6,4'}).addTo(map);
+    straightLines.push(line);
+    var dist=straightDist(p.lat,p.lng,f.lat,f.lng);
+    var el=document.getElementById('route-info-'+gi+'-'+fi);
+    if(el)el.innerHTML='<div class="facility-route-info"><span class="route-badge">📏 直線 '+formatDistance(dist)+'</span></div><div class="route-click-hint" onclick="event.stopPropagation();fetchRealRoute('+gi+','+fi+')">▶ 実ルートを取得</div>';
+  });
+}
+
+// [I] 施設クリック or リンククリック時：実ルート取得
+function fetchRealRoute(gi,fi){
+  var g=pharmacyGroups[gi],p=g.data,f=p.facilities[fi],color=g.color;
+  var el=document.getElementById('route-info-'+gi+'-'+fi);
+  if(el)el.innerHTML='<div class="facility-route-info"><span style="color:#999;font-size:9px">🔄 実ルート取得中...</span></div>';
+  fetchRoute(p.lat,p.lng,f.lat,f.lng,function(res){
+    if(res){
+      if(el)el.innerHTML='<div class="facility-route-info"><span class="route-badge">🚗 '+formatDistance(res.distance)+'</span><span class="route-badge">⏱ '+formatDuration(res.duration)+'</span></div>';
+      var coords=res.geometry.coordinates.map(function(c){return[c[1],c[0]];});
+      var rl=L.polyline(coords,{color:color,weight:4,opacity:0.7,dashArray:'8,6',lineCap:'round'}).addTo(map);
+      routeLines.push(rl);
+    } else {
+      if(el)el.innerHTML='<div class="facility-route-info"><span style="color:#e63946;font-size:9px">⚠ 実ルート取得不可</span></div>';
+    }
+  });
+}
+
+// ========== 未実施店舗 ==========
+function loadInactiveStores(cb){
+  fetch(INACTIVE_CSV_URL).then(function(r){return r.text();}).then(function(csv){
+    var rows=parseCSV(csv),icon=createDiamondIcon(),count=0;
+    rows.forEach(function(r){
+      var lat=parseFloat(r['緯度']),lng=parseFloat(r['経度']);if(isNaN(lat)||isNaN(lng))return;
+      var mk=L.marker([lat,lng],{icon:icon}).bindPopup('<div class="popup-type" style="color:#9ca3af">◇ 施設在宅未実施</div><div class="popup-title">'+esc(r['店舗名']||'')+'</div><div class="popup-address">'+esc(r['住所']||'')+'</div><div class="popup-detail">'+esc(r['エリア']||'')+'</div>');
+      inactiveMarkers.push(mk);
+      inactiveData.push({name:r['店舗名']||'',area:r['エリア']||'',addr:r['住所']||'',lat:lat,lng:lng,storeNum:r['店舗番号']||''});
+      count++;
+    });
+    document.getElementById('inactiveCountStat').textContent=count;
+    if(acPharmacy)inactiveData.forEach(function(s,i){acPharmacy._addItem({value:'inactive-'+i,label:(s.storeNum?s.storeNum+' ':'')+s.name+'（未実施）',sub:s.area+' ／ '+s.addr});});
+    if(cb)cb();
+  }).catch(function(err){console.log('未実施読込エラー:',err);if(cb)cb();});
+}
+function toggleInactiveStores(){
+  var btn=document.getElementById('toggleInactive');
+  inactiveVisible=!inactiveVisible;
+  btn.classList.toggle('active',inactiveVisible);
+  updateVisibility();
+  renderSidebar();
+}
+
+// ========== [C] 施設形態フィルタ ==========
+function buildFacilityTypeFilter(){
+  var types={};
+  DATA.forEach(function(p){p.facilities.forEach(function(f){if(f.type)types[f.type]=true;});});
+  // キーワードで分類
+  var categories=[
+    {label:'特別養護老人ホーム',keywords:['特養','特別養護']},
+    {label:'有料老人ホーム',keywords:['有料老人ホーム']},
+    {label:'住宅型有料老人ホーム',keywords:['住宅型有料']},
+    {label:'介護付有料老人ホーム',keywords:['介護付']},
+    {label:'サービス付き高齢者向け住宅',keywords:['サ高住','サービス付き高齢者']},
+    {label:'グループホーム',keywords:['グループホーム','グループハウス']},
+    {label:'介護老人保健施設',keywords:['老健','介護老人保健']},
+    {label:'小規模多機能',keywords:['小規模多機能']},
+    {label:'ケアハウス',keywords:['ケアハウス','軽費老人ホーム']},
+    {label:'デイサービス',keywords:['デイサービス','通所介護']},
+    {label:'障害者施設',keywords:['障害']},
+    {label:'医療機関',keywords:['医療機関','病院','クリニック']},
+  ];
+  var sel=document.getElementById('facilityTypeFilter');
+  categories.forEach(function(cat){
+    // この分類に該当する施設が実データにあるか確認
+    var found=Object.keys(types).some(function(t){return cat.keywords.some(function(kw){return t.indexOf(kw)>=0;});});
+    if(found){var opt=document.createElement('option');opt.value=cat.keywords.join('|');opt.textContent=cat.label;sel.appendChild(opt);}
+  });
+}
+
+function matchesFacilityType(facilityType,filterValue){
+  if(!filterValue)return true;
+  var keywords=filterValue.split('|');
+  return keywords.some(function(kw){return facilityType.indexOf(kw)>=0;});
+}
+
+// ========== オートコンプリート ==========
+function createAutocomplete(containerId,items,placeholder){
+  var container=document.getElementById(containerId),selectedValue=null,highlightIdx=-1;
+  var input=document.createElement('input');input.type='text';input.className='autocomplete-input';input.placeholder=placeholder;
+  var tag=document.createElement('div');tag.className='selected-tag';tag.style.display='none';
+  var listEl=document.createElement('div');listEl.className='autocomplete-list';
+  var wrapper=document.createElement('div');wrapper.className='autocomplete-wrapper';
+  wrapper.appendChild(input);wrapper.appendChild(tag);wrapper.appendChild(listEl);container.appendChild(wrapper);
+  function renderList(q){listEl.innerHTML='';highlightIdx=-1;q=(q||'').toLowerCase();var matched=items.filter(function(it){return it.label.toLowerCase().indexOf(q)>=0||(it.sub&&it.sub.toLowerCase().indexOf(q)>=0);});
+    if(!matched.length){listEl.innerHTML='<div style="padding:10px;font-size:11px;color:#999;text-align:center">該当なし</div>';listEl.classList.add('show');return;}
+    matched.slice(0,50).forEach(function(it){var div=document.createElement('div');div.className='autocomplete-item';div.innerHTML='<span class="autocomplete-item-name">'+esc(it.label)+'</span>'+(it.sub?'<span class="autocomplete-item-sub">'+esc(it.sub)+'</span>':'');div.addEventListener('mousedown',function(e){e.preventDefault();selectItem(it);});listEl.appendChild(div);});listEl.classList.add('show');}
+  function selectItem(it){selectedValue=it.value;input.style.display='none';tag.style.display='flex';tag.innerHTML='<span>'+esc(it.label)+'</span><button class="clear-btn" title="クリア">✕</button>';tag.querySelector('.clear-btn').addEventListener('click',function(){clearSel();});listEl.classList.remove('show');checkReady();}
+  function clearSel(){selectedValue=null;input.style.display='';input.value='';tag.style.display='none';listEl.classList.remove('show');input.focus();checkReady();}
+  input.addEventListener('focus',function(){renderList(input.value);});input.addEventListener('input',function(){renderList(input.value);});
+  input.addEventListener('blur',function(){setTimeout(function(){listEl.classList.remove('show');},200);});
+  input.addEventListener('keydown',function(e){var its=listEl.querySelectorAll('.autocomplete-item');if(e.key==='ArrowDown'){e.preventDefault();highlightIdx=Math.min(highlightIdx+1,its.length-1);upHL(its);}else if(e.key==='ArrowUp'){e.preventDefault();highlightIdx=Math.max(highlightIdx-1,0);upHL(its);}else if(e.key==='Enter'&&highlightIdx>=0&&its[highlightIdx]){e.preventDefault();its[highlightIdx].dispatchEvent(new Event('mousedown'));}});
+  function upHL(its){its.forEach(function(el,i){el.classList.toggle('highlighted',i===highlightIdx);});if(its[highlightIdx])its[highlightIdx].scrollIntoView({block:'nearest'});}
+  return{getValue:function(){return selectedValue;},clear:clearSel,_addItem:function(it){items.push(it);}};
+}
+function checkReady(){document.getElementById('routeSearchBtn').disabled=!(acPharmacy&&acPharmacy.getValue()!==null&&acFacility&&acFacility.getValue()!==null);}
+
+function searchCustomRoute(){
+  var pVal=acPharmacy.getValue(),fVal=acFacility.getValue();
+  var parts=fVal.split('-'),origPIdx=parseInt(parts[0]),fIdx=parseInt(parts[1]);
+  var pharmacy;
+  if(typeof pVal==='string'&&pVal.indexOf('inactive-')===0){
+    var inIdx=parseInt(pVal.replace('inactive-',''));
+    pharmacy={name:inactiveData[inIdx].name,lat:inactiveData[inIdx].lat,lng:inactiveData[inIdx].lng,address:inactiveData[inIdx].addr};
+  }else{pharmacy=DATA[pVal];}
+  var facility=DATA[origPIdx].facilities[fIdx];
+  clearCustomRoute();clearRoutes();clearStraightLines();
+  document.getElementById('routeResultNames').innerHTML='<b>薬局：</b>'+esc(pharmacy.name)+'<br><b>施設：</b>'+esc(facility.name);
+  document.getElementById('routeResultDetail').innerHTML='<span style="color:#999">検索中...</span>';
+  document.getElementById('routeResult').classList.add('show');
+  map.fitBounds(L.latLngBounds([[pharmacy.lat,pharmacy.lng],[facility.lat,facility.lng]]),{padding:[100,100],maxZoom:14});
+  fetchRoute(pharmacy.lat,pharmacy.lng,facility.lat,facility.lng,function(res){
+    if(res){document.getElementById('routeResultDetail').innerHTML='<span class="route-result-badge">🚗 '+formatDistance(res.distance)+'</span><span class="route-result-badge">⏱ '+formatDuration(res.duration)+'</span>';var coords=res.geometry.coordinates.map(function(c){return[c[1],c[0]];});customRouteLine=L.polyline(coords,{color:'#f43f5e',weight:4,opacity:0.8,lineCap:'round'}).addTo(map);}
+    else document.getElementById('routeResultDetail').innerHTML='<span style="color:#e63946">ルートを取得できませんでした</span>';
+  });
+}
+
+// ========== タブ・フィルター ==========
+function switchTab(t){document.querySelectorAll('.tab-btn').forEach(function(b,i){b.classList.toggle('active',i===(t==='list'?0:1));});document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active');});document.getElementById('tab-'+t).classList.add('active');}
+
+function buildAreaFilters(){
+  var names=['全て','直轄','第一エリア','第二エリア','第三エリア','第四エリア','第五エリア'];
+  var div=document.getElementById('areaFilters');div.innerHTML='';
+  names.forEach(function(area){var btn=document.createElement('button');btn.className='area-btn'+(area==='全て'?' active':'');btn.textContent=area;btn.onclick=function(){activeArea=area;document.querySelectorAll('.area-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');onFilterChange();};div.appendChild(btn);});
+}
+
+function updateVisibility(){
+  // v6.2 サイドバー一覧と地図マーカーの挙動を統一するため、検索条件もここに反映する
+  var st=getCurrentSearchState();
+  pharmacyGroups.forEach(function(g){
+    var visible=activeArea==='全て'||g.data.area===activeArea;
+    // [C] 施設形態フィルタ：この薬局が担当する施設のいずれかがマッチするか
+    if(visible&&activeFacilityType){visible=g.data.facilities.some(function(f){return matchesFacilityType(f.type,activeFacilityType);});}
+    // v6.2 検索条件
+    if(visible&&st.hasFilter)visible=pharmacyMatchesSearch(g.data,st);
+    g.markers.forEach(function(m){if(visible){if(!map.hasLayer(m))map.addLayer(m);}else{if(map.hasLayer(m))map.removeLayer(m);}});
+  });
+  // [案C] 未実施マーカーもエリア・検索連動
+  inactiveMarkers.forEach(function(m,i){
+    var s=inactiveData[i];
+    var vis=inactiveVisible&&(activeArea==='全て'||(s&&s.area===activeArea));
+    if(vis&&st.hasFilter&&s)vis=inactiveStoreMatchesSearch(s,st);
+    if(vis){if(!map.hasLayer(m))map.addLayer(m);}else{if(map.hasLayer(m))map.removeLayer(m);}
+  });
+}
+
+function onFilterChange(){
+  activeFacilityType=document.getElementById('facilityTypeFilter').value;
+  updateVisibility();renderSidebar();
+  // v6.2 検索結果に地図を自動フィット（debounce付き：入力中の連続発火を抑制）
+  if(searchDebounceTimer)clearTimeout(searchDebounceTimer);
+  searchDebounceTimer=setTimeout(autoZoomToVisible,300);
+}
+
+// v6.2 検索結果（≒地図に表示中のマーカー）にズームを合わせる
+function autoZoomToVisible(){
+  // 検索文字列が空のときは自動ズームしない（広域ビューを保つ）
+  if(document.getElementById('searchInput').value.trim()==='')return;
+  var bounds=L.latLngBounds([]);
+  var hasAny=false;
+  pharmacyGroups.forEach(function(g){
+    g.markers.forEach(function(m){
+      if(map.hasLayer(m)){bounds.extend(m.getLatLng());hasAny=true;}
+    });
+  });
+  // 未実施マーカーもズーム対象に
+  inactiveMarkers.forEach(function(m){
+    if(map.hasLayer(m)){bounds.extend(m.getLatLng());hasAny=true;}
+  });
+  if(hasAny){
+    map.fitBounds(bounds,{padding:[80,80],maxZoom:14,animate:true});
+  }
+}
+
+// v6.2 検索対象切替ボタン
+function bindSearchTargetButtons(){
+  document.querySelectorAll('#searchTargetRow .search-target-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      activeSearchField=btn.dataset.field;
+      document.querySelectorAll('#searchTargetRow .search-target-btn').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      var input=document.getElementById('searchInput');
+      input.placeholder=SEARCH_PLACEHOLDERS[activeSearchField]||'検索...';
+      // 店舗番号モードのときだけ数字キーボードを優先
+      if(activeSearchField==='storeNum')input.setAttribute('inputmode','numeric');
+      else input.setAttribute('inputmode','text');
+      var hint=document.getElementById('searchHint');
+      if(hint)hint.textContent=SEARCH_HINTS[activeSearchField]||'';
+      onFilterChange();
+    });
+  });
+}
+
+var activeGroupIndex=null;
+function renderSidebar(){
+  // v6.2 検索ロジックは pharmacyMatchesSearch / inactiveStoreMatchesSearch に集約。
+  //   updateVisibility と判定が同一なので、サイドバーと地図は常に同じ結果を表示する。
+  var st=getCurrentSearchState();
+  var list=document.getElementById('pharmacyList');list.innerHTML='';
+  var totalP=0,totalF=0,areas={},currentArea='';
+  var anyResult=false;
+
+  pharmacyGroups.forEach(function(group,i){
+    var p=group.data;
+    if(activeArea!=='全て'&&p.area!==activeArea)return;
+    if(activeFacilityType&&!p.facilities.some(function(f){return matchesFacilityType(f.type,activeFacilityType);}))return;
+    if(!pharmacyMatchesSearch(p,st))return;
+
+    anyResult=true;totalP++;totalF+=p.facilities.length;areas[p.area]=true;
+    if(p.area!==currentArea){currentArea=p.area;var lbl=document.createElement('div');lbl.className='area-section-label';lbl.textContent=p.area;list.appendChild(lbl);}
+    // 店舗番号 + 店舗名称で表示
+    var displayName=(p.storeNum?p.storeNum+' ':'')+p.name;
+    var div=document.createElement('div');
+    div.innerHTML='<div class="pharmacy-card'+(activeGroupIndex===i?' active':'')+'" id="pcard-'+i+'"><div class="color-dot" style="background:'+group.color+'"></div><div class="pharmacy-info"><div class="pharmacy-name">'+esc(displayName)+'</div><div class="pharmacy-meta">'+esc(p.address)+'</div></div><span class="facility-count">'+p.facilities.length+'施設</span></div><div class="facility-list'+(activeGroupIndex===i?' open':'')+'" id="flist-'+i+'">'+p.facilities.map(function(f,fi){return'<div class="facility-item" data-gi="'+i+'" data-fi="'+fi+'"><div class="facility-item-header"><span class="facility-icon-small">🏠</span>'+esc(f.name)+(f.type?' <span style="font-size:9px;color:#aaa">'+esc(f.type)+'</span>':'')+(f.visitFlag==='あり'?' <span style="font-size:9px;color:#7c3aed" title="往診同行あり">🩺</span>':'')+'</div><div id="route-info-'+i+'-'+fi+'"></div></div>';}).join('')+'</div>';
+    div.querySelector('.pharmacy-card').addEventListener('click',function(){toggleFacilities(i);});
+    div.querySelectorAll('.facility-item').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();focusFacility(parseInt(el.dataset.gi),parseInt(el.dataset.fi));});});
+    list.appendChild(div);
+  });
+
+  // 未実施店舗リスト（トグルON時のみ）
+  if(inactiveVisible&&inactiveData.length>0){
+    var inactiveFiltered=inactiveData.filter(function(s){
+      if(activeArea!=='全て'&&s.area!==activeArea)return false;
+      if(!inactiveStoreMatchesSearch(s,st))return false;
+      return true;
+    });
+    if(inactiveFiltered.length>0){
+      anyResult=true;
+      var secLabel=document.createElement('div');
+      secLabel.className='area-section-label';
+      secLabel.style.color='#6b7280';
+      secLabel.textContent=(activeArea==='全て'?'施設在宅未実施（全国 ':'施設在宅未実施（')+inactiveFiltered.length+'店舗）';
+      list.appendChild(secLabel);
+      inactiveFiltered.forEach(function(s){
+        var origIdx=inactiveData.indexOf(s);
+        var dispName=(s.storeNum?s.storeNum+' ':'')+s.name;
+        var card=document.createElement('div');
+        card.innerHTML='<div class="pharmacy-card" style="opacity:0.7"><div class="color-dot" style="background:#9ca3af;transform:rotate(45deg);border-radius:2px"></div><div class="pharmacy-info"><div class="pharmacy-name" style="color:#6b7280">'+esc(dispName)+'</div><div class="pharmacy-meta">'+esc(s.addr)+'</div></div><span style="font-size:9px;color:#9ca3af;padding:2px 6px;border:1px solid #d1d5db;border-radius:4px">未実施</span></div>';
+        card.querySelector('.pharmacy-card').addEventListener('click',function(){
+          // 既存選択を解除
+          document.querySelectorAll('.facility-list').forEach(function(el){el.classList.remove('open');});
+          document.querySelectorAll('.pharmacy-card').forEach(function(el){el.classList.remove('active');});
+          clearRoutes();clearStraightLines();activeGroupIndex=null;
+          // 未実施店舗にズーム＆ポップアップ
+          if(inactiveMarkers[origIdx]){
+            map.setView([s.lat,s.lng],15,{animate:true});
+            inactiveMarkers[origIdx].openPopup();
+          }
+        });
+        list.appendChild(card);
+      });
+    }
+  }
+
+  // 0件メッセージ
+  if(!anyResult){
+    list.innerHTML='<div class="no-results"><div class="no-results-icon">🔍</div>該当する薬局・施設が見つかりません<div class="no-results-text">検索対象や入力内容を変更してみてください</div></div>';
+  }
+
+  document.getElementById('pharmacyCount').textContent=totalP;
+  document.getElementById('facilityCount').textContent=totalF;
+  document.getElementById('areaCount').textContent=Object.keys(areas).length;
+}
+
+function toggleFacilities(index){
+  var wasActive=activeGroupIndex===index;
+  document.querySelectorAll('.facility-list').forEach(function(el){el.classList.remove('open');});
+  document.querySelectorAll('.pharmacy-card').forEach(function(el){el.classList.remove('active');});
+  clearRoutes();clearStraightLines();clearCustomRoute();
+  if(!wasActive){
+    var fl=document.getElementById('flist-'+index),cd=document.getElementById('pcard-'+index);
+    if(fl)fl.classList.add('open');if(cd)cd.classList.add('active');
+    activeGroupIndex=index;
+    map.fitBounds(L.latLngBounds(pharmacyGroups[index].markers.map(function(m){return m.getLatLng();})),{padding:[80,80],maxZoom:14});
+    // [I] 直線のみ表示
+    drawStraightLinesForGroup(index);
+  }else activeGroupIndex=null;
+}
+function focusFacility(gi,fi){
+  var mk=pharmacyGroups[gi].markers[fi+1];
+  map.setView(mk.getLatLng(),15,{animate:true});mk.openPopup();
+  // [I] 施設クリックで実ルート取得
+  fetchRealRoute(gi,fi);
+}
+
+// ========== メイン読み込み ==========
+fetch(SHEET_CSV_URL).then(function(res){return res.text();}).then(function(csvText){
+  var rows=parseCSV(csvText);
+
+  // v6.2 必須ヘッダー検証 — 必須列が欠けていれば処理停止＋明確エラー画面
+  var validation=validateHeaders(rows);
+  if(!validation.ok){
+    document.getElementById('loadingOverlay').innerHTML='<div class="fatal-error"><h2>⚠️ データを読み込めません（必須列の欠落）</h2><p>スプレッドシートに以下の必須列が見つかりませんでした：</p><p style="margin:10px 0">'+validation.missing.map(function(h){return'<code>'+esc(h)+'</code>';}).join(' ')+'</p><p>スプレッドシート「マップ用データ」シートのヘッダー列名（1行目）が変更されていないか確認してください。列名のスペル・全半角・前後空白も含めて完全一致が必要です。</p><p style="margin-top:16px"><button onclick="location.reload()" style="padding:10px 24px;background:#3b5cff;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer">再読み込み</button></p></div>';
+    return;
+  }
+
+  DATA=csvToData(rows);
+  var colorMap=assignColors(DATA);
+
+  DATA.forEach(function(p,i){
+    var color=colorMap[i]||'#6b7280',markers=[];
+    markers.push(L.marker([p.lat,p.lng],{icon:createPharmacyIcon(color,p.role)}).bindPopup('<div class="popup-type">💊 薬局</div><div class="popup-title">'+(p.storeNum?esc(p.storeNum)+' ':'')+esc(p.name)+'</div><div class="popup-address">'+esc(p.address)+'</div><div class="popup-detail">'+esc(p.area)+' ／ '+p.facilities.length+'施設担当</div>').addTo(map));
+    p.facilities.forEach(function(f){
+      // 患者数・配達頻度の表示整形
+      // - 患者数は「33人」「約20人」のように既に「人」が含まれているケースが多いため、末尾に「人」がなければ補う
+      // - 配達頻度が空欄の場合は配達頻度ラベルごと省略
+      // v5.1: CSV由来文字列はすべて esc() でエスケープしXSS対策
+      var popupHtml='<div class="popup-type">🏠 '+esc(f.type||'施設')+'</div><div class="popup-title">'+esc(f.name)+'</div><div class="popup-address">'+esc(f.address)+'</div><div class="popup-parent">担当店舗：'+(p.storeNum?esc(p.storeNum)+' ':'')+esc(p.name)+'</div>';
+      if(f.patients){
+        var pStr=String(f.patients).trim();
+        // 末尾が「人」で終わっていなければ付ける（ただし数値や漢字数字のみの場合など）
+        if(pStr&&!/人\s*$/.test(pStr))pStr=pStr+'人';
+        var detail='患者数：'+esc(pStr);
+        if(f.frequency)detail+='／配達頻度：'+esc(f.frequency);
+        popupHtml+='<div class="popup-detail">'+detail+'</div>';
+      }
+      // v6.1: 算定の有無（常時表示）・非算定の理由（S=無 かつ T≠空欄 の時のみ表示）
+      // 旧表示「未算定施設／算定不可施設」は撤去、新表示に置換
+      // 仕様:
+      //   - 算定の有無: 常時表示（有/無/不明）
+      //   - 非算定の理由: S='無' かつ T が空でないときのみ表示
+      //   - S='有' のときは、仮にTに値が残っていても理由は表示しない（データ不整合の二重防御）
+      //   - S が空欄・想定外値のときは「不明」と表示し、理由は出さない
+      var keisanRaw=String(f.keisanStatus||'').trim();
+      var reasonRaw=String(f.keisanReason||'').trim();
+      var keisanDisp;
+      if(keisanRaw==='有')keisanDisp='<span class="status-yes">有</span>';
+      else if(keisanRaw==='無')keisanDisp='<span class="status-no">無</span>';
+      else keisanDisp='<span class="status-no">不明</span>';
+      popupHtml+='<div class="popup-status"><span class="status-label">算定の有無：</span>'+keisanDisp+'</div>';
+      // v6.1: 厳密化 — S='無' のときだけ理由を表示
+      if(keisanRaw==='無' && reasonRaw!==''){
+        popupHtml+='<div class="popup-status"><span class="status-label">非算定の理由：</span>'+esc(reasonRaw)+'</div>';
+      }
+      if(f.visitFlag==='あり'){popupHtml+='<div class="popup-visit"><div class="popup-visit-title">🩺 往診同行情報</div>';if(f.visitIrai)popupHtml+='<div class="popup-visit-row">依頼先：'+esc(f.visitIrai)+'</div>';if(f.visitDay)popupHtml+='<div class="popup-visit-row">曜日：'+esc(f.visitDay)+'</div>';if(f.visitTime)popupHtml+='<div class="popup-visit-row">時間：'+esc(f.visitTime)+'</div>';if(f.visitNinzu)popupHtml+='<div class="popup-visit-row">人数：'+esc(f.visitNinzu)+'</div>';if(f.visitNote)popupHtml+='<div class="popup-visit-note">📝 '+esc(f.visitNote)+'</div>';popupHtml+='</div>';}
+      markers.push(L.marker([f.lat,f.lng],{icon:createFacilityIcon(color)}).bindPopup(popupHtml,{maxWidth:280}).addTo(map));
+    });
+    pharmacyGroups.push({data:p,color:color,markers:markers});
+  });
+
+  // オートコンプリート
+  var pItems=DATA.map(function(p,i){return{value:i,label:(p.storeNum?p.storeNum+' ':'')+p.name,sub:p.area+' ／ '+p.address};});
+  var fItems=[];DATA.forEach(function(p,pi){p.facilities.forEach(function(f,fi){fItems.push({value:pi+'-'+fi,label:f.name,sub:'現担当：'+(p.storeNum?p.storeNum+' ':'')+p.name+' ／ '+(f.type||'')});});});
+  acPharmacy=createAutocomplete('pharmacySelector',pItems,'薬局名を入力...');
+  acFacility=createAutocomplete('facilitySelector',fItems,'施設名を入力...');
+
+  buildAreaFilters();
+  buildFacilityTypeFilter();
+  bindSearchTargetButtons();
+  renderSidebar();
+
+  // v6.2 「閲覧日」明記（最終更新日との混同を防止）
+  document.getElementById('metaUpdated').textContent='📅 閲覧日: '+new Date().toLocaleDateString('ja-JP');
+
+  // [B] データ品質表示
+  if(dataErrors>0)document.getElementById('metaErrors').innerHTML='<span class="warn">⚠ 欠損 '+dataErrors+'件</span>';
+
+  // v6.2 警告バー：補助列欠落 / 役割不明 を画面上部に明示
+  var warnings=[];
+  if(validation.missingOptional.length>0){
+    warnings.push('<div><span class="wtitle">⚠ 補助列が欠落:</span>'+validation.missingOptional.map(function(h){return esc(h);}).join('、')+'（地図描画は継続しますが、該当項目の表示が空欄になります）</div>');
+  }
+  if(unknownRoleStores.length>0){
+    warnings.push('<div><span class="wtitle">⚠ 役割不明:</span>'+unknownRoleStores.length+'店舗（「コア」「サテライト」以外の値）。アイコンは通常サイズで描画しています。スプレッドシートの「役割」列を確認してください。</div>');
+  }
+  if(warnings.length>0){
+    document.getElementById('warningArea').innerHTML='<div class="warning-bar">'+warnings.join('')+'</div>';
+  }
+
+  // 未実施店舗読み込み
+  loadInactiveStores(function(){
+    document.getElementById('loadingOverlay').style.display='none';
+  });
+}).catch(function(err){
+  document.getElementById('loadingOverlay').innerHTML='<div style="text-align:center;padding:40px"><div style="font-size:20px;margin-bottom:12px">⚠️ データの読み込みに失敗しました</div><div style="font-size:14px;color:#666;margin-bottom:8px">スプレッドシートの公開設定を確認してください</div><div style="font-size:12px;color:#999">'+err.message+'</div><button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;background:#3b5cff;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer">再読み込み</button></div>';
+});
+</script>
+</body>
+</html>
