@@ -26,6 +26,17 @@ body{font-family:'Noto Sans JP','IBM Plex Sans',sans-serif;background:var(--bg-p
 .search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:14px;pointer-events:none}
 .search-box{width:100%;padding:9px 14px 9px 38px;background:#fff;border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-family:inherit;font-size:13px;outline:none;box-shadow:var(--shadow-sm)}
 .search-box:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,92,255,0.12)}
+.search-target-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:2px}
+.search-target-label{font-size:10px;color:var(--text-muted);font-weight:500;margin-right:2px}
+.search-target-btn{padding:4px 10px;font-size:10px;font-family:inherit;font-weight:500;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+.search-target-btn:hover{background:var(--bg-card-hover)}
+.search-target-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 6px rgba(59,92,255,0.2)}
+.search-hint{font-size:10px;color:var(--text-muted);margin-top:-2px;padding:0 2px}
+.warning-bar{margin:6px 0 2px;padding:6px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:10px;color:#92400e;line-height:1.5}
+.warning-bar .wtitle{font-weight:600;margin-right:4px}
+.fatal-error{padding:24px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;color:#991b1b;max-width:520px;margin:20px auto;font-size:13px;line-height:1.6}
+.fatal-error h2{font-size:16px;margin-bottom:8px;color:#7f1d1d}
+.fatal-error code{background:#fff;padding:2px 6px;border-radius:4px;font-family:'IBM Plex Sans',monospace;font-size:11px;color:#7f1d1d;border:1px solid #fecaca}
 .filter-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
 .filter-label{font-size:10px;color:var(--text-muted);font-weight:500;margin-right:2px}
 .area-btn,.filter-btn{padding:4px 10px;font-size:10px;font-family:inherit;font-weight:500;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap}
@@ -140,12 +151,21 @@ body{font-family:'Noto Sans JP','IBM Plex Sans',sans-serif;background:var(--bg-p
       <span id="metaUpdated">📅 --</span>
       <span id="metaErrors"></span>
     </div>
+    <div id="warningArea"></div>
   </div>
   <div class="controls-wrapper">
+    <div class="search-target-row" id="searchTargetRow">
+      <span class="search-target-label">検索対象:</span>
+      <button type="button" class="search-target-btn active" data-field="storeNum">店舗番号</button>
+      <button type="button" class="search-target-btn" data-field="pharmacy">薬局名</button>
+      <button type="button" class="search-target-btn" data-field="facility">施設名</button>
+      <button type="button" class="search-target-btn" data-field="address">住所</button>
+    </div>
     <div class="search-container">
       <span class="search-icon">🔍</span>
-      <input type="text" class="search-box" placeholder="薬局名・施設名・住所・施設形態で検索..." id="searchInput" oninput="onFilterChange()">
+      <input type="text" class="search-box" placeholder="店舗番号を入力（例：75）" id="searchInput" inputmode="numeric" oninput="onFilterChange()">
     </div>
+    <div class="search-hint" id="searchHint">※「店舗番号」は完全一致／その他は部分一致で検索します（全角・半角どちらでもOK）</div>
     <div class="filter-row" id="areaFilters"></div>
     <div class="filter-row">
       <span class="filter-label">形態:</span>
@@ -215,8 +235,89 @@ var AREA_ORDER={'直轄':0,'第一エリア':1,'第二エリア':2,'第三エリ
 var DATA=[],pharmacyGroups=[],inactiveMarkers=[],inactiveData=[];
 var routeLines=[],straightLines=[],customRouteLine=null,routeCache={};
 var activeArea='全て',activeGroupIndex=null,inactiveVisible=false,activeFacilityType='';
+var activeSearchField='storeNum'; // 検索対象（storeNum / pharmacy / facility / address）デフォルト＝店舗番号
 var acPharmacy=null,acFacility=null;
 var dataErrors=0;
+var unknownRoleStores=[]; // 役割が「コア」「サテライト」以外の店舗（警告用）
+var searchDebounceTimer=null;
+
+// ========== v6.2 検索ユーティリティ ==========
+// NFKC正規化＋全角空白→半角＋連続空白圧縮＋trim。
+// 「７５」「　75　」「７ ５」などの表記揺れを安全な範囲で吸収する。
+// 意味が変わる過剰な正規化（カタカナ↔ひらがな等）はしない。
+function normalizeStr(s){
+  if(s===null||s===undefined)return '';
+  var str=String(s);
+  if(str.normalize)str=str.normalize('NFKC'); // 全角英数→半角、互換文字統合
+  str=str.replace(/\u3000/g,' ');             // 全角空白→半角空白
+  str=str.replace(/\s+/g,' ');                // 連続空白圧縮
+  return str.trim();
+}
+function normalizeForPartial(s){
+  return normalizeStr(s).toLowerCase();
+}
+var SEARCH_PLACEHOLDERS={
+  storeNum:'店舗番号を入力（例：75）',
+  pharmacy:'薬局名の一部を入力（例：豊橋市）',
+  facility:'施設名の一部を入力',
+  address:'住所の一部を入力（例：豊橋市）'
+};
+var SEARCH_HINTS={
+  storeNum:'※「店舗番号」は完全一致／全角・半角どちらでもOK（例：「75」も「７５」もヒット）',
+  pharmacy:'※「薬局名」は部分一致で検索します（例：「豊橋市」で「豊橋市大清水店」「豊橋市高師店」等）',
+  facility:'※「施設名」は部分一致で検索します',
+  address:'※「住所」は部分一致で検索します（薬局住所・施設住所のどちらかを対象）'
+};
+
+// ========== v6.2 必須ヘッダー検証 ==========
+// 必須列（地図描画に必須・1つでも欠けたら処理停止）
+var REQUIRED_HEADERS=['店舗番号','店舗名称','店舗緯度','店舗経度','担当施設名称','施設緯度','施設経度'];
+// 補助列（欠けても地図は描画可能・画面上部に警告のみ）
+var OPTIONAL_HEADERS=['エリア','店舗所在地','役割','施設形態','施設所在地','担当患者数','配達頻度','往診同行有無','往診同行_依頼先','往診同行_往診曜日','往診同行_時間帯','往診同行_人数','往診同行_特記事項','算定の有無','非算定の理由'];
+function validateHeaders(rows){
+  if(!rows||rows.length===0)return{ok:false,missing:REQUIRED_HEADERS.slice(),missingOptional:[]};
+  var actual=Object.keys(rows[0]);
+  var missing=REQUIRED_HEADERS.filter(function(h){return actual.indexOf(h)<0;});
+  var missingOpt=OPTIONAL_HEADERS.filter(function(h){return actual.indexOf(h)<0;});
+  return{ok:missing.length===0,missing:missing,missingOptional:missingOpt};
+}
+
+// ========== v6.2 フィルタ・検索判定（共通） ==========
+// updateVisibility / renderSidebar / 未実施店舗フィルタ で同一ロジックを使うための共通判定。
+// これにより「サイドバーは絞れたが地図は絞れていない」といったズレを構造的に防止する。
+function getCurrentSearchState(){
+  var rawInput=document.getElementById('searchInput').value;
+  return{
+    raw:rawInput,
+    hasFilter:rawInput.trim().length>0,
+    field:activeSearchField,
+    partial:normalizeForPartial(rawInput),
+    exact:normalizeStr(rawInput).replace(/^0+/,'') // 店舗番号用：先頭ゼロ除去で「075」も「75」とマッチ
+  };
+}
+function pharmacyMatchesSearch(p,st){
+  if(!st.hasFilter)return true;
+  if(st.field==='storeNum'){
+    var sn=normalizeStr(p.storeNum).replace(/^0+/,'');
+    return sn!==''&&sn===st.exact;
+  }
+  if(st.field==='pharmacy')return normalizeForPartial(p.name).indexOf(st.partial)>=0;
+  if(st.field==='facility')return p.facilities.some(function(f){return normalizeForPartial(f.name).indexOf(st.partial)>=0;});
+  if(st.field==='address')return normalizeForPartial(p.address).indexOf(st.partial)>=0
+    ||p.facilities.some(function(f){return normalizeForPartial(f.address).indexOf(st.partial)>=0;});
+  return false;
+}
+function inactiveStoreMatchesSearch(s,st){
+  if(!st.hasFilter)return true;
+  if(st.field==='storeNum'){
+    var sn=normalizeStr(s.storeNum).replace(/^0+/,'');
+    return sn!==''&&sn===st.exact;
+  }
+  if(st.field==='pharmacy')return normalizeForPartial(s.name).indexOf(st.partial)>=0;
+  if(st.field==='address')return normalizeForPartial(s.addr).indexOf(st.partial)>=0;
+  // 施設名は未実施店舗には施設情報が無いので対象外
+  return false;
+}
 
 // ========== マップ初期化 ==========
 var map=L.map('map',{center:[36.2,138.0],zoom:6,zoomControl:false});
@@ -241,11 +342,26 @@ function parseCSV(text){
 
 function csvToData(rows){
   var pm={},errs=0;
+  unknownRoleStores=[]; // 役割が「コア」「サテライト」以外の店舗を記録（警告用）
   rows.forEach(function(r){
-    var sn=r['店舗名称'],fn=r['担当施設名称'],sLat=parseFloat(r['店舗緯度']),sLng=parseFloat(r['店舗経度']),fLat=parseFloat(r['施設緯度']),fLng=parseFloat(r['施設経度']);
-    if(!sn||!fn||isNaN(sLat)||isNaN(sLng)||isNaN(fLat)||isNaN(fLng)){errs++;return;}
-    var key=r['店舗番号']+'_'+sn;
-    if(!pm[key])pm[key]={name:sn,storeNum:r['店舗番号'],address:r['店舗所在地']||'',area:r['エリア']||'',lat:sLat,lng:sLng,role:r['役割']||'コア',facilities:[]};
+    var sn=r['店舗番号'],fn=r['担当施設名称'];
+    var sLat=parseFloat(r['店舗緯度']),sLng=parseFloat(r['店舗経度']);
+    var fLat=parseFloat(r['施設緯度']),fLng=parseFloat(r['施設経度']);
+    var snStr=sn===null||sn===undefined?'':String(sn).trim();
+    var name=r['店舗名称'];
+    // v6.2 必須項目欠落行はスキップ（店舗番号空欄のゴミ行も含む）
+    if(!snStr||!name||!fn||isNaN(sLat)||isNaN(sLng)||isNaN(fLat)||isNaN(fLng)){errs++;return;}
+    // v6.2 薬局キーは店舗番号単独（実データで店舗番号がユニークであることを確認済み）
+    var key=snStr;
+    if(!pm[key]){
+      // v6.2 役割は「コア」「サテライト」のときだけ採用。
+      // それ以外（空欄・typo・想定外値）は '' とし、createPharmacyIcon 側で通常サイズ描画。
+      // 未確定値を勝手に「コア」と決め打ちしないことで、誤表示を防ぐ。
+      var roleRaw=String(r['役割']||'').trim();
+      var role=(roleRaw==='コア'||roleRaw==='サテライト')?roleRaw:'';
+      if(role===''&&unknownRoleStores.indexOf(snStr)<0)unknownRoleStores.push(snStr);
+      pm[key]={name:name,storeNum:snStr,address:r['店舗所在地']||'',area:r['エリア']||'',lat:sLat,lng:sLng,role:role,facilities:[]};
+    }
     pm[key].facilities.push({name:fn,type:r['施設形態']||'',address:r['施設所在地']||'',lat:fLat,lng:fLng,patients:r['担当患者数']||'',frequency:r['配達頻度']||'',visitFlag:r['往診同行有無']||'',visitIrai:r['往診同行_依頼先']||'',visitDay:r['往診同行_往診曜日']||'',visitTime:r['往診同行_時間帯']||'',visitNinzu:r['往診同行_人数']||'',visitNote:r['往診同行_特記事項']||'',unbilledStatus:r['未算定施設']||'',nonbillableStatus:r['算定不可施設']||'',keisanStatus:r['算定の有無']||'',keisanReason:r['非算定の理由']||''});
   });
   dataErrors=errs;
@@ -433,16 +549,21 @@ function buildAreaFilters(){
 }
 
 function updateVisibility(){
+  // v6.2 サイドバー一覧と地図マーカーの挙動を統一するため、検索条件もここに反映する
+  var st=getCurrentSearchState();
   pharmacyGroups.forEach(function(g){
     var visible=activeArea==='全て'||g.data.area===activeArea;
     // [C] 施設形態フィルタ：この薬局が担当する施設のいずれかがマッチするか
     if(visible&&activeFacilityType){visible=g.data.facilities.some(function(f){return matchesFacilityType(f.type,activeFacilityType);});}
+    // v6.2 検索条件
+    if(visible&&st.hasFilter)visible=pharmacyMatchesSearch(g.data,st);
     g.markers.forEach(function(m){if(visible){if(!map.hasLayer(m))map.addLayer(m);}else{if(map.hasLayer(m))map.removeLayer(m);}});
   });
-  // [案C] 未実施マーカーもエリア連動（inactiveVisible=ON かつ「全て」or 所属エリア一致 のときだけ表示）
+  // [案C] 未実施マーカーもエリア・検索連動
   inactiveMarkers.forEach(function(m,i){
     var s=inactiveData[i];
     var vis=inactiveVisible&&(activeArea==='全て'||(s&&s.area===activeArea));
+    if(vis&&st.hasFilter&&s)vis=inactiveStoreMatchesSearch(s,st);
     if(vis){if(!map.hasLayer(m))map.addLayer(m);}else{if(map.hasLayer(m))map.removeLayer(m);}
   });
 }
@@ -450,11 +571,55 @@ function updateVisibility(){
 function onFilterChange(){
   activeFacilityType=document.getElementById('facilityTypeFilter').value;
   updateVisibility();renderSidebar();
+  // v6.2 検索結果に地図を自動フィット（debounce付き：入力中の連続発火を抑制）
+  if(searchDebounceTimer)clearTimeout(searchDebounceTimer);
+  searchDebounceTimer=setTimeout(autoZoomToVisible,300);
+}
+
+// v6.2 検索結果（≒地図に表示中のマーカー）にズームを合わせる
+function autoZoomToVisible(){
+  // 検索文字列が空のときは自動ズームしない（広域ビューを保つ）
+  if(document.getElementById('searchInput').value.trim()==='')return;
+  var bounds=L.latLngBounds([]);
+  var hasAny=false;
+  pharmacyGroups.forEach(function(g){
+    g.markers.forEach(function(m){
+      if(map.hasLayer(m)){bounds.extend(m.getLatLng());hasAny=true;}
+    });
+  });
+  // 未実施マーカーもズーム対象に
+  inactiveMarkers.forEach(function(m){
+    if(map.hasLayer(m)){bounds.extend(m.getLatLng());hasAny=true;}
+  });
+  if(hasAny){
+    map.fitBounds(bounds,{padding:[80,80],maxZoom:14,animate:true});
+  }
+}
+
+// v6.2 検索対象切替ボタン
+function bindSearchTargetButtons(){
+  document.querySelectorAll('#searchTargetRow .search-target-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      activeSearchField=btn.dataset.field;
+      document.querySelectorAll('#searchTargetRow .search-target-btn').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      var input=document.getElementById('searchInput');
+      input.placeholder=SEARCH_PLACEHOLDERS[activeSearchField]||'検索...';
+      // 店舗番号モードのときだけ数字キーボードを優先
+      if(activeSearchField==='storeNum')input.setAttribute('inputmode','numeric');
+      else input.setAttribute('inputmode','text');
+      var hint=document.getElementById('searchHint');
+      if(hint)hint.textContent=SEARCH_HINTS[activeSearchField]||'';
+      onFilterChange();
+    });
+  });
 }
 
 var activeGroupIndex=null;
 function renderSidebar(){
-  var filter=document.getElementById('searchInput').value.trim().toLowerCase();
+  // v6.2 検索ロジックは pharmacyMatchesSearch / inactiveStoreMatchesSearch に集約。
+  //   updateVisibility と判定が同一なので、サイドバーと地図は常に同じ結果を表示する。
+  var st=getCurrentSearchState();
   var list=document.getElementById('pharmacyList');list.innerHTML='';
   var totalP=0,totalF=0,areas={},currentArea='';
   var anyResult=false;
@@ -463,10 +628,7 @@ function renderSidebar(){
     var p=group.data;
     if(activeArea!=='全て'&&p.area!==activeArea)return;
     if(activeFacilityType&&!p.facilities.some(function(f){return matchesFacilityType(f.type,activeFacilityType);}))return;
-    // 検索：店舗番号も対象に追加
-    var mP=p.name.toLowerCase().indexOf(filter)>=0||p.address.toLowerCase().indexOf(filter)>=0||(p.area&&p.area.toLowerCase().indexOf(filter)>=0)||(p.storeNum&&p.storeNum.toLowerCase().indexOf(filter)>=0);
-    var mF=p.facilities.some(function(f){return f.name.toLowerCase().indexOf(filter)>=0||f.address.toLowerCase().indexOf(filter)>=0||(f.type&&f.type.toLowerCase().indexOf(filter)>=0);});
-    if(filter&&!mP&&!mF)return;
+    if(!pharmacyMatchesSearch(p,st))return;
 
     anyResult=true;totalP++;totalF+=p.facilities.length;areas[p.area]=true;
     if(p.area!==currentArea){currentArea=p.area;var lbl=document.createElement('div');lbl.className='area-section-label';lbl.textContent=p.area;list.appendChild(lbl);}
@@ -481,12 +643,9 @@ function renderSidebar(){
 
   // 未実施店舗リスト（トグルON時のみ）
   if(inactiveVisible&&inactiveData.length>0){
-    var inactiveFiltered=inactiveData.filter(function(s,idx){
+    var inactiveFiltered=inactiveData.filter(function(s){
       if(activeArea!=='全て'&&s.area!==activeArea)return false;
-      if(filter){
-        var m=s.name.toLowerCase().indexOf(filter)>=0||s.addr.toLowerCase().indexOf(filter)>=0||(s.area&&s.area.toLowerCase().indexOf(filter)>=0)||(s.storeNum&&s.storeNum.toLowerCase().indexOf(filter)>=0);
-        if(!m)return false;
-      }
+      if(!inactiveStoreMatchesSearch(s,st))return false;
       return true;
     });
     if(inactiveFiltered.length>0){
@@ -519,7 +678,7 @@ function renderSidebar(){
 
   // 0件メッセージ
   if(!anyResult){
-    list.innerHTML='<div class="no-results"><div class="no-results-icon">🔍</div>該当する薬局・施設が見つかりません<div class="no-results-text">検索条件やフィルタを変更してみてください</div></div>';
+    list.innerHTML='<div class="no-results"><div class="no-results-icon">🔍</div>該当する薬局・施設が見つかりません<div class="no-results-text">検索対象や入力内容を変更してみてください</div></div>';
   }
 
   document.getElementById('pharmacyCount').textContent=totalP;
@@ -551,6 +710,14 @@ function focusFacility(gi,fi){
 // ========== メイン読み込み ==========
 fetch(SHEET_CSV_URL).then(function(res){return res.text();}).then(function(csvText){
   var rows=parseCSV(csvText);
+
+  // v6.2 必須ヘッダー検証 — 必須列が欠けていれば処理停止＋明確エラー画面
+  var validation=validateHeaders(rows);
+  if(!validation.ok){
+    document.getElementById('loadingOverlay').innerHTML='<div class="fatal-error"><h2>⚠️ データを読み込めません（必須列の欠落）</h2><p>スプレッドシートに以下の必須列が見つかりませんでした：</p><p style="margin:10px 0">'+validation.missing.map(function(h){return'<code>'+esc(h)+'</code>';}).join(' ')+'</p><p>スプレッドシート「マップ用データ」シートのヘッダー列名（1行目）が変更されていないか確認してください。列名のスペル・全半角・前後空白も含めて完全一致が必要です。</p><p style="margin-top:16px"><button onclick="location.reload()" style="padding:10px 24px;background:#3b5cff;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer">再読み込み</button></p></div>';
+    return;
+  }
+
   DATA=csvToData(rows);
   var colorMap=assignColors(DATA);
 
@@ -603,13 +770,26 @@ fetch(SHEET_CSV_URL).then(function(res){return res.text();}).then(function(csvTe
 
   buildAreaFilters();
   buildFacilityTypeFilter();
+  bindSearchTargetButtons();
   renderSidebar();
 
-  // [A] 最終更新日時
-  document.getElementById('metaUpdated').textContent='📅 '+new Date().toLocaleDateString('ja-JP');
+  // v6.2 「閲覧日」明記（最終更新日との混同を防止）
+  document.getElementById('metaUpdated').textContent='📅 閲覧日: '+new Date().toLocaleDateString('ja-JP');
 
   // [B] データ品質表示
   if(dataErrors>0)document.getElementById('metaErrors').innerHTML='<span class="warn">⚠ 欠損 '+dataErrors+'件</span>';
+
+  // v6.2 警告バー：補助列欠落 / 役割不明 を画面上部に明示
+  var warnings=[];
+  if(validation.missingOptional.length>0){
+    warnings.push('<div><span class="wtitle">⚠ 補助列が欠落:</span>'+validation.missingOptional.map(function(h){return esc(h);}).join('、')+'（地図描画は継続しますが、該当項目の表示が空欄になります）</div>');
+  }
+  if(unknownRoleStores.length>0){
+    warnings.push('<div><span class="wtitle">⚠ 役割不明:</span>'+unknownRoleStores.length+'店舗（「コア」「サテライト」以外の値）。アイコンは通常サイズで描画しています。スプレッドシートの「役割」列を確認してください。</div>');
+  }
+  if(warnings.length>0){
+    document.getElementById('warningArea').innerHTML='<div class="warning-bar">'+warnings.join('')+'</div>';
+  }
 
   // 未実施店舗読み込み
   loadInactiveStores(function(){
