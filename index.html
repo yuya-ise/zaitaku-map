@@ -229,7 +229,7 @@ var INACTIVE_CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vQItIRx7q0
 
 // ========== 色パレット ==========
 var DISTINCT_COLORS=['#e63946','#2563eb','#16a34a','#f59e0b','#9333ea','#06b6d4','#dc2626','#0d9488','#ea580c','#4f46e5','#15803d','#db2777','#0284c7','#b45309','#7c3aed','#059669','#c026d3','#1d4ed8','#ca8a04','#be123c'];
-var AREA_ORDER={'直轄':0,'第一エリア':1,'第二エリア':2,'第三エリア':3,'第四エリア':4,'第五エリア':5};
+var AREA_ORDER={'直轄':0,'第一エリア':1,'第二エリア':2,'第三エリア':3,'第四エリア':4,'第五エリア':5,'未分類':6};
 
 // ========== 状態管理 ==========
 var DATA=[],pharmacyGroups=[],inactiveMarkers=[],inactiveData=[];
@@ -544,6 +544,9 @@ function switchTab(t){document.querySelectorAll('.tab-btn').forEach(function(b,i
 
 function buildAreaFilters(){
   var names=['全て','直轄','第一エリア','第二エリア','第三エリア','第四エリア','第五エリア'];
+  // 「未分類」エリアの店舗（在宅実施 or 未実施）が1件でもあればボタンを追加。0件なら自動的に非表示。
+  var hasUnclassified=pharmacyGroups.some(function(g){return g.data.area==='未分類';})||inactiveData.some(function(s){return s.area==='未分類';});
+  if(hasUnclassified)names.push('未分類');
   var div=document.getElementById('areaFilters');div.innerHTML='';
   names.forEach(function(area){var btn=document.createElement('button');btn.className='area-btn'+(area==='全て'?' active':'');btn.textContent=area;btn.onclick=function(){activeArea=area;document.querySelectorAll('.area-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');onFilterChange();};div.appendChild(btn);});
 }
@@ -768,7 +771,6 @@ fetch(SHEET_CSV_URL).then(function(res){return res.text();}).then(function(csvTe
   acPharmacy=createAutocomplete('pharmacySelector',pItems,'薬局名を入力...');
   acFacility=createAutocomplete('facilitySelector',fItems,'施設名を入力...');
 
-  buildAreaFilters();
   buildFacilityTypeFilter();
   bindSearchTargetButtons();
   renderSidebar();
@@ -793,6 +795,8 @@ fetch(SHEET_CSV_URL).then(function(res){return res.text();}).then(function(csvTe
 
   // 未実施店舗読み込み
   loadInactiveStores(function(){
+    // 未実施店舗データ確定後にエリアボタンを生成（未分類が未実施のみの場合でも正しく判定するため）
+    buildAreaFilters();
     document.getElementById('loadingOverlay').style.display='none';
   });
 }).catch(function(err){
